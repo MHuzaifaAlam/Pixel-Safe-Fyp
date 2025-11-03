@@ -20,3 +20,34 @@ Merged user authentication (signup/login) and image upload features using Django
 - **Image Processing**: Pillow
 - **Database**: SQLite (Development)
 - **Authentication**: DRF Token Authentication
+
+# Backend Setup Instructions
+
+## 📋 Prerequisites
+
+Before starting, ensure you have the following installed:
+
+- Python 3.8+
+- Pipenv (Python package manager)
+- Git
+
+## 🔧 Step-by-Step Setup
+
+### 1. Navigate to Backend Directory
+```bash
+cd PIXEL-SATE-FYP/backend
+```
+### 2. Install Dependencies using Pipenv
+```bash
+pipenv install
+pipenv shell
+```
+### 3. Run Database Migrations
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+### 4. Start the Development Server
+```bash
+python manage.py runserver
+```
