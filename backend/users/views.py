@@ -8,9 +8,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import Userserializer,LoginSerializer
 from rest_framework.authtoken.models import Token
-
+from rest_framework.permissions import AllowAny
+from rest_framework.decorators import permission_classes
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def signup(request):
     serializer = Userserializer(data=request.data)
     if serializer.is_valid():
@@ -25,6 +27,7 @@ def signup(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def login(request):
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
