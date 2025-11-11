@@ -19,16 +19,16 @@ class Userserializer(serializers.ModelSerializer):
         return user
 
         
-class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
+# class LoginSerializer(serializers.Serializer):
+#     username = serializers.CharField()
+#     password = serializers.CharField(write_only=True)
 
-    def validate(self, data):
-        username = data.get('username')
-        password = data.get('password')
+#     def validate(self, data):
+#         username = data.get('username')
+#         password = data.get('password')
 
-        user = authenticate(username=username,password=password)
-        if user and user.is_active:
-            data['user'] = user
-            return data
-        raise serializers.ValidationError("Invalid credentials or inactive account.")
+#         user = authenticate(username=username,password=password)
+#         if user and user.is_active:
+#             data['user'] = user
+#             return data
+#         raise serializers.ValidationError("Invalid credentials or inactive account.")
