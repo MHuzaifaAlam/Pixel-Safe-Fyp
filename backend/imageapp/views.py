@@ -1,22 +1,19 @@
-from django.shortcuts import render
-
-# Create your views here.
-# imageapp/views.py
-from rest_framework import status, generics, permissions
+from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from .models import Image
 from .serializers import ImageSerializer
 
 class UserImageView(generics.ListCreateAPIView):
     serializer_class = ImageSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]  # only logged-in users
 
     def get_queryset(self):
-        # Only return the images of the logged-in user
+        # Return only images uploaded by the logged-in user
         return Image.objects.filter(user=self.request.user)
 
     def post(self, request, *args, **kwargs):
-        files = request.FILES.getlist('images')  # multiple files
+        # Handle multiple image uploads
+        files = request.FILES.getlist('images')  # 'images' is the form-data key
         images = []
         for file in files:
             image = Image.objects.create(user=request.user, image=file)
