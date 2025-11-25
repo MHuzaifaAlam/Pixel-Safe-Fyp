@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'users',
     'imageapp',
+    'reportapp'
 ]
 
 INSTALLED_APPS += ['rest_framework.authtoken']

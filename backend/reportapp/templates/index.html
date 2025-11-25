@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Report</title>
+    <link rel="stylesheet" href="../static/style.css">
+</head>
+
+<body>
+    <div class="header">
+        <img class="logo" src="../../../frontend/public/vite.svg" alt="logo">
+        <div>
+            <div class="title">Pixel-Safe Forensic Report</div>
+            <div class="subtitle">Dark Cyber Forensics — Image Authenticity Analysis</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="section-title">Overview</div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size:16px; font-weight:700; color:#c8ffee;">
+                        Report ID: <span style="color:#fff;">{{ report_id }}</span>
+                    </div>
+                    <div class="meta">Generated: {{ date }} · Analyst: {{ user }}</div>
+                </div>
+                <div class="verified">
+                    <img src="../../../frontend/public/vite.svg" height="36">
+                    <div style="font-size:13px;">Verified by Pixel-Safe</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-2">
+                <div class="card">
+                    <div class="section-title">Comparison — Original / Tampered / Heatmap</div>
+                    <div class="compare-wrap">
+                        <div class="compare-item">
+                            <div class="compare-label">Original</div>
+                            <img src="/10648985_1475176526105440_5508908815430463874_o.jpg" alt="original">
+                        </div>
+
+                        <div class="compare-item">
+                            <div class="compare-label">Suspected (Tampered)</div>
+                            <img src="/10710424_1481111475500207_5881224472816590549_o.jpg" alt="tampered">
+                        </div>
+
+                        <div class="compare-item">
+                            <div class="compare-label">Heatmap</div>
+                            <img src="/1613847_1451250911819597_3712729265697623010_n.jpg" alt="heatmap">
+                        </div>
+                    </div>
+
+                    <div class="kpi-row">
+                        <div class="kpi">
+                            <div class="num score-num">{{ score }}</div>
+                            <div class="label">Tampering Score</div>
+                        </div>
+
+                        <div class="kpi">
+                            <div class="num">{{ watermark_status }}</div>
+                            <div class="label">Watermark</div>
+                        </div>
+
+                        <div class="kpi">
+                            <div class="num">{{ status }}</div>
+                            <div class="label">Verdict</div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="card">
+                    <div class="section-title">Notes & Recommendations</div>
+                    <div class="meta">{{ notes }}</div>
+                </div>
+            </div>
+
+            <div class="col-1">
+                <div class="card">
+                    <div class="section-title">Metadata</div>
+                    <div class="meta">
+                        <pre>{{ metadata }}</pre>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-title">Processing Steps</div>
+                    <div class="meta">
+                        1. Preprocessing →
+                        2. GAN Detection →
+                        3. Bit-level Analysis →
+                        4. Watermark Verification →
+                        5. Report Generation
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="section-title">Chain of Custody</div>
+                    <div class="meta">
+                        Uploaded by: {{ user }}<br>
+                        File hash: {{ file_hash }}<br>
+                        Stored at: {{ file_path }}<br>
+                        Analysis ID: {{ report_id }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">Pixel-Safe © 2025 · University of Central Punjab · Forensic Report</div>
+    </div>
+</body>
+
+</html>
