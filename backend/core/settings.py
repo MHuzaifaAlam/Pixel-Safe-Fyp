@@ -163,5 +163,6 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # 👈 React (Vite) dev server
 ]
 
-
+# If using cookies / session auth, set:
+CORS_ALLOW_CREDENTIALS = True
 
