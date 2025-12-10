@@ -1,6 +1,7 @@
 asgiref==3.10.0
 brotli==1.2.0
 cffi==2.0.0
+coverage==7.13.0
 cssselect2==0.8.0
 Django==5.2.7
 django-cors-headers==4.9.0
