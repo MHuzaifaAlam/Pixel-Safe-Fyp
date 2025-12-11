@@ -1,48 +1,3 @@
-# from django.db import models
-
-# # Create your models here.
-# from django.db import models
-# from django.contrib.auth.models import User
-# from django.db.models.signals import post_delete
-# from django.dispatch import receiver
-# import os,uuid
-
-# class Image(models.Model):
-#     # Primary Key
-#     ImageID = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-#     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='images')
-#     image = models.ImageField(upload_to='uploads/')
-
-#     # File Fields
-#     fileName = models.CharField(max_length=255)
-#     format = models.CharField(max_length=10)  # jpg, png, jpeg, etc.
-#     ImageSize = models.IntegerField()  # Size in bytes
-#     uploaded_at = models.DateTimeField(auto_now_add=True)
-
-#     # Status Fields
-#     STATUS_CHOICES = [
-#         ('uploaded', 'Uploaded'),
-#         ('processing', 'Processing'),
-#         ('completed', 'Completed'),
-#         ('failed', 'Failed'),
-#         ('protected', 'Protected'),
-#     ]
-#     Status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploaded')
-#     # ✅ NEW: Batch tracking fields (Option 3)
-#     batch_group = models.UUIDField(null=True, blank=True)  # Same UUID for all images in a batch
-#     batch_position = models.IntegerField(null=True, blank=True)  # 0, 1, 2, etc.
-
-
-# @receiver(post_delete, sender=Image)
-# def delete_image_file(sender, instance, **kwargs):
-#     if instance.image:
-#         if os.path.isfile(instance.image.path):
-#             os.remove(instance.image.path)
-
-#     def __str__(self):
-#         return f"{self.user.username} - {self.image.name}"
-
-
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models.signals import post_delete
@@ -94,7 +49,7 @@ class Image(models.Model):
     Status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploaded')
     
     # Link to Batch
-    batch = models.ForeignKey(Batch, on_delete=models.SET_NULL, 
+    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, 
                             null=True, blank=True, related_name='images')
     batch_position = models.IntegerField(null=True, blank=True)
     
@@ -106,10 +61,46 @@ class Image(models.Model):
         return f"{self.fileName} - {self.user.username}{batch_info}"
 
 # ============ SIGNALS ============
+# @receiver(post_delete, sender=Image)
+# def delete_image_file(sender, instance, **kwargs):
+#     if instance.image and os.path.isfile(instance.image.path):
+#         os.remove(instance.image.path)
+
+# models.py - Update your delete_image_file signal
+
 @receiver(post_delete, sender=Image)
 def delete_image_file(sender, instance, **kwargs):
-    if instance.image and os.path.isfile(instance.image.path):
-        os.remove(instance.image.path)
+    """
+    Delete image file only - DON'T check for empty batches here
+    """
+    # Only delete the actual image file
+    if instance.image:
+        try:
+            if os.path.isfile(instance.image.path):
+                os.remove(instance.image.path)
+        except:
+            pass  # File might already be deleted
+    if instance.batch_id:  # Use batch_id instead of batch to avoid DB hit if possible
+        try:
+            # Get the batch from database using the ID
+            from django.db import transaction
+            
+            with transaction.atomic():
+                # Use select_for_update to prevent race conditions
+                batch = Batch.objects.select_for_update().filter(
+                    BatchID=instance.batch_id
+                ).first()
+                
+                # If batch exists and has no more images, delete it
+                if batch and batch.images.count() == 0:
+                    batch.delete()
+                    print(f"✅ Empty batch deleted: {instance.batch_id}")
+        except Exception as e:
+            print(f"Error checking/deleting empty batch: {e}")
+            pass  # Don't crash if there's an issue
+
+# Remove the batch deletion logic from here
+# Batch deletion should only happen in the BatchViewSet destroy method
 
 # @receiver(post_delete, sender=Image)
 # def delete_empty_batch(sender, instance, **kwargs):
