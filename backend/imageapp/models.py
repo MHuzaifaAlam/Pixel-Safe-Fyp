@@ -60,13 +60,6 @@ class Image(models.Model):
         batch_info = f" (Batch: {self.batch.name})" if self.batch else ""
         return f"{self.fileName} - {self.user.username}{batch_info}"
 
-# ============ SIGNALS ============
-# @receiver(post_delete, sender=Image)
-# def delete_image_file(sender, instance, **kwargs):
-#     if instance.image and os.path.isfile(instance.image.path):
-#         os.remove(instance.image.path)
-
-# models.py - Update your delete_image_file signal
 
 @receiver(post_delete, sender=Image)
 def delete_image_file(sender, instance, **kwargs):
@@ -98,11 +91,3 @@ def delete_image_file(sender, instance, **kwargs):
         except Exception as e:
             print(f"Error checking/deleting empty batch: {e}")
             pass  # Don't crash if there's an issue
-
-# Remove the batch deletion logic from here
-# Batch deletion should only happen in the BatchViewSet destroy method
-
-# @receiver(post_delete, sender=Image)
-# def delete_empty_batch(sender, instance, **kwargs):
-#     if instance.batch and instance.batch.images.count() == 0:
-#         instance.batch.delete()
