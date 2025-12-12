@@ -127,18 +127,23 @@
             <!-- Metadata -->
             <div class="detail-card">
                 <h2 class="detail-title">Technical Metadata</h2>
-                <div class="metadata-display" style="font-size: 12px; line-height: 1.2; margin: 0; padding: 0;">
+            
+                <div class="meta-grid">
                     {% if metadata %}
                         {% for key, value in metadata.items %}
-                            <div style="margin-bottom: 2px;"><strong>{{ key }}:</strong> {{ value }}</div>
+                            <div class="meta-item">
+                                <span class="meta-key">{{ key }}:</span>
+                                <span class="meta-value">{{ value }}</span>
+                            </div>
                         {% endfor %}
                     {% else %}
-                        <div style="margin-bottom: 2px;">
-                            Camera: Nikon D850, Lens: 24-70mm f/2.8, Resolution: 8256 × 5504, File Size: 45.7 MB, Format: NEF (RAW)
+                        <div class="meta-item">
+                            No metadata found.
                         </div>
                     {% endif %}
                 </div>
             </div>
+            
             
             
 

@@ -409,3 +409,29 @@ body {
     color: #a7c4d1;
     font-size: 8pt;
 }
+
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 20px;   /* row-gap = 6px, column-gap = 20px */
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 0;
+    margin: 0;
+}
+
+.meta-item {
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.meta-key {
+    font-weight: bold;
+    color: #6bb8ff;
+}
+
+.meta-value {
+    color: #ddd;
+    word-break: break-word;
+}
