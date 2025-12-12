@@ -193,7 +193,7 @@ class UserImageView(viewsets.ModelViewSet):
             raise Http404
 
     def create(self, request, *args, **kwargs):
-        files = request.FILES.getlist('images')
+        files = request.FILES.getlist('image')
         batch_name = request.data.get('batch_name', '').strip()
         
         if not files:

@@ -16,7 +16,8 @@ class ImageSerializer(serializers.ModelSerializer):
             'image',
             'batch',
             'batch_position',
-            'batch_name'
+            'batch_name',
+            'metadata'
         ]
         read_only_fields = [
             'ImageID', 'uploaded_at', 'Status',

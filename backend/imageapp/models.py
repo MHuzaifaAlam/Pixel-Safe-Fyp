@@ -31,6 +31,7 @@ class Image(models.Model):
     ImageID = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='images')
     image = models.ImageField(upload_to='uploads/')
+    metadata = models.JSONField(null=True, blank=True)
     
     # File Fields
     fileName = models.CharField(max_length=255)
