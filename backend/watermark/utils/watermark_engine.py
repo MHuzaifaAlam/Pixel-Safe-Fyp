@@ -1,0 +1,212 @@
+import numpy as np
+from scipy.fftpack import dct, idct
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+from Crypto.Random import get_random_bytes
+import pywt
+from PIL import Image
+import io,cv2
+
+class WatermarkEngine:
+    def __init__(self, block_size=8, alpha=0.03):
+        self.block_size = block_size
+        self.alpha = alpha  # Low value for invisibility
+        
+    def rgb_to_ycbcr(self, image_array):
+        """Convert RGB to YCbCr using numpy"""
+        R = image_array[:, :, 0].astype(np.float32)
+        G = image_array[:, :, 1].astype(np.float32)
+        B = image_array[:, :, 2].astype(np.float32)
+        
+        Y = 0.299 * R + 0.587 * G + 0.114 * B
+        Cb = 128 - 0.168736 * R - 0.331264 * G + 0.5 * B
+        Cr = 128 + 0.5 * R - 0.418688 * G - 0.081312 * B
+        
+        return np.stack([Y, Cb, Cr], axis=2).astype(np.uint8)
+    
+    def ycbcr_to_rgb(self, ycbcr_array):
+        """Convert YCbCr back to RGB"""
+        Y = ycbcr_array[:, :, 0].astype(np.float32)
+        Cb = ycbcr_array[:, :, 1].astype(np.float32) - 128
+        Cr = ycbcr_array[:, :, 2].astype(np.float32) - 128
+        
+        R = Y + 1.402 * Cr
+        G = Y - 0.344136 * Cb - 0.714136 * Cr
+        B = Y + 1.772 * Cb
+        
+        rgb = np.stack([R, G, B], axis=2)
+        rgb = np.clip(rgb, 0, 255).astype(np.uint8)
+        return rgb
+    
+    def embed_watermark(self, image_array, secret_data):
+        """
+        Embed secret data into image using DWT-DCT
+        """
+        # Convert to YCbCr
+        ycbcr = self.rgb_to_ycbcr(image_array)
+        Y, Cb, Cr = ycbcr[:, :, 0], ycbcr[:, :, 1], ycbcr[:, :, 2]
+        
+        # Apply DWT on Y channel
+        coeffs = pywt.dwt2(Y.astype(np.float32), 'haar')
+        LL, (LH, HL, HH) = coeffs
+        
+        # Convert secret data to bits
+        bits = self._bytes_to_bits(secret_data)
+        
+        # Distribute bits between LH and HL
+        mid_point = len(bits) // 2
+        bits_lh = bits[:mid_point]
+        bits_hl = bits[mid_point:mid_point*2]
+        
+        # Embed in subbands
+        watermarked_LH = self._embed_in_subband(LH, bits_lh)
+        watermarked_HL = self._embed_in_subband(HL, bits_hl)
+        
+        # Inverse DWT
+        watermarked_Y = pywt.idwt2(
+            (LL, (watermarked_LH, watermarked_HL, HH)), 
+            'haar'
+        )
+        
+        # Ensure same dimensions
+        watermarked_Y = np.clip(watermarked_Y, 0, 255).astype(np.uint8)
+        watermarked_Y = watermarked_Y[:Y.shape[0], :Y.shape[1]]
+        
+        # Reconstruct image
+        watermarked_ycbcr = np.stack([watermarked_Y, Cb, Cr], axis=2)
+        watermarked_rgb = self.ycbcr_to_rgb(watermarked_ycbcr)
+        
+        return watermarked_rgb
+    
+    def extract_watermark(self, image_array, num_bits):
+        """
+        Extract watermark from image
+        
+        Args:
+            image_array: numpy array of image (RGB)
+            num_bits: number of bits to extract
+            
+        Returns:
+            extracted_bits: list of bits
+        """
+        # Convert to YCbCr
+        ycbcr = self.rgb_to_ycbcr(image_array)
+        Y, _, _ = cv2.split(ycbcr)
+        
+        # Apply DWT
+        coeffs = pywt.dwt2(Y.astype(np.float32), 'haar')
+        _, (LH, HL, _) = coeffs
+        
+        # Extract from both subbands
+        bits_lh = self._extract_from_subband(LH, num_bits//2)
+        bits_hl = self._extract_from_subband(HL, num_bits//2)
+        
+        # Combine bits
+        extracted_bits = bits_lh + bits_hl
+        
+        return extracted_bits[:num_bits]
+    
+    def _embed_in_subband(self, subband, bits):
+        """Embed bits into DCT of subband"""
+        height, width = subband.shape
+        watermarked = subband.copy()
+        
+        bit_index = 0
+        
+        for i in range(0, height - self.block_size, self.block_size):
+            for j in range(0, width - self.block_size, self.block_size):
+                if bit_index >= len(bits):
+                    break
+                    
+                block = subband[i:i+self.block_size, j:j+self.block_size]
+                dct_block = dct(dct(block.T, norm='ortho').T, norm='ortho')
+                
+                # Modify mid-frequency coefficients
+                if bits[bit_index] == 1:
+                    if dct_block[2, 3] <= dct_block[3, 2]:
+                        dct_block[2, 3] += self.alpha
+                        dct_block[3, 2] -= self.alpha
+                else:
+                    if dct_block[2, 3] >= dct_block[3, 2]:
+                        dct_block[2, 3] -= self.alpha
+                        dct_block[3, 2] += self.alpha
+                
+                # Inverse DCT
+                idct_block = idct(idct(dct_block.T, norm='ortho').T, norm='ortho')
+                watermarked[i:i+self.block_size, j:j+self.block_size] = idct_block
+                bit_index += 1
+        
+        return watermarked
+    
+    def _extract_from_subband(self, subband, num_bits):
+        """Extract bits from DCT of subband"""
+        height, width = subband.shape
+        extracted_bits = []
+        
+        for i in range(0, height - self.block_size, self.block_size):
+            for j in range(0, width - self.block_size, self.block_size):
+                if len(extracted_bits) >= num_bits:
+                    break
+                    
+                block = subband[i:i+self.block_size, j:j+self.block_size]
+                dct_block = dct(dct(block.T, norm='ortho').T, norm='ortho')
+                
+                # Compare coefficients
+                if dct_block[2, 3] > dct_block[3, 2]:
+                    extracted_bits.append(1)
+                else:
+                    extracted_bits.append(0)
+        
+        return extracted_bits
+    
+    # --- Utility Methods ---
+    
+    def _bytes_to_bits(self, data_bytes):
+        """Convert bytes to list of bits"""
+        bits = []
+        for byte in data_bytes:
+            for i in range(7, -1, -1):
+                bits.append((byte >> i) & 1)
+        return bits
+    
+    def _bits_to_bytes(self, bits):
+        """Convert bits to bytes"""
+        byte_array = bytearray()
+        for i in range(0, len(bits), 8):
+            byte = 0
+            for j in range(8):
+                if i + j < len(bits):
+                    byte |= bits[i + j] << (7 - j)
+            byte_array.append(byte)
+        return bytes(byte_array)
+
+
+class AESManager:
+    """Handle AES encryption/decryption for watermark data"""
+    
+    def __init__(self, key=None):
+        if key is None:
+            self.key = get_random_bytes(32)  # AES-256
+        else:
+            self.key = key
+    
+    def encrypt(self, plaintext):
+        """Encrypt data"""
+        if isinstance(plaintext, str):
+            plaintext = plaintext.encode('utf-8')
+        
+        iv = get_random_bytes(16)
+        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        ciphertext = cipher.encrypt(pad(plaintext, AES.block_size))
+        
+        return {
+            'ciphertext': ciphertext,
+            'iv': iv,
+            'key': self.key
+        }
+    
+    def decrypt(self, ciphertext, iv, key):
+        """Decrypt data"""
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        decrypted = unpad(cipher.decrypt(ciphertext), AES.block_size)
+        return decrypted

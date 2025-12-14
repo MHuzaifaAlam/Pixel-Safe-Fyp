@@ -279,7 +279,7 @@ class UserImageView(viewsets.ModelViewSet):
         try:
             image.Status = 'processing'
             image.save()
-            time.sleep(2)  # Simulate processing
+            time.sleep(2)  
             image.Status = 'completed'
             image.save()
         except Exception as e:

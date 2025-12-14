@@ -41,7 +41,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'users',
     'imageapp',
-    # 'reportapp'
+    'watermark',
     'reportapp.apps.ReportappConfig'
 ]
 
