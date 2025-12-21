@@ -1,5 +1,4 @@
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.core.files.base import ContentFile
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -7,6 +6,7 @@ import json, uuid, traceback, os, time, logging
 
 from imageapp.models import Image as ImageModel
 from .models import WatermarkRecord
+from django.contrib.auth.decorators import login_required
 from reportapp.models import Report
 from .utils.image_processor import ImageProcessor
 from .utils.watermark_service import WatermarkService
@@ -15,6 +15,8 @@ from .utils.response_builder import ResponseBuilder
 from .utils.visual_overlay import VisualOverlay
 from .utils.auto_detector import WatermarkAutoDetector
 from .utils.helpers import validate_image_file
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 logger = logging.getLogger(__name__)
 
@@ -45,33 +47,28 @@ def safe_json_response(data, status=200):
         safe_data = convert_for_json(data)
         return JsonResponse(safe_data, status=status, safe=False)
 
-@csrf_exempt
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def apply_watermark(request):
     """Apply watermark to an existing image from imageapp"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
-    
     try:
-        # Parse request data
-        if request.content_type == 'application/json':
-            data = json.loads(request.body)
-        else:
-            data = request.POST.dict()
-        
+        # Parse request data (JSON or form)
+        data = request.data if hasattr(request, 'data') else (json.loads(request.body) if request.content_type == 'application/json' else request.POST.dict())
+
         image_id = data.get('image_id')
         if not image_id:
             return JsonResponse({'error': 'image_id is required'}, status=400)
-        
-        # Get original image
-        original_image = _get_original_image(image_id)
+
+        # Get original image (must belong to requesting user)
+        original_image = _get_original_image(image_id, request.user)
         if isinstance(original_image, JsonResponse):
             return original_image
-        
+
         # Load and process image
         image_array = _load_image_array(original_image.image.path)
         if isinstance(image_array, JsonResponse):
             return image_array
-        
+
         # Create watermark record
         watermark_record = WatermarkRecord.objects.create(
             original_image=original_image,
@@ -80,21 +77,21 @@ def apply_watermark(request):
             aes_key_encrypted=b"",
             aes_iv_encrypted=b""
         )
-        
+
         # Apply watermark
         watermark_service = WatermarkService()
         result = watermark_service.apply_watermark_to_image(image_array, watermark_record)
-        
+
         if not result['success']:
             watermark_record.delete()
             return JsonResponse({'error': result['error']}, status=500)
-        
+
         # Update watermark record with results
         watermark_record.perceptual_hash = result['phash']
         watermark_record.encrypted_hash = result['encrypted_data']['ciphertext']  # This is bytes
         watermark_record.aes_key_encrypted = result['encrypted_data']['key']  # This is bytes
         watermark_record.aes_iv_encrypted = result['encrypted_data']['iv']  # This is bytes
-        
+
         # Save watermarked image
         watermarked_data = ImageProcessor.save_image_array(result['watermarked_array'], 'PNG')
         watermark_record.watermarked_image.save(
@@ -102,53 +99,60 @@ def apply_watermark(request):
             ContentFile(watermarked_data)
         )
         watermark_record.save()
-        
+
         # Update original image status
         original_image.Status = 'protected'
         original_image.save()
-        
+
         logger.info(f"Watermark applied successfully to image {image_id}")
-        
+
         # Return response - Use safe_json_response
         response_data = ResponseBuilder.build_apply_response(watermark_record, original_image)
         return safe_json_response(response_data)
-        
+
     except Exception as e:
         error_trace = traceback.format_exc()
         logger.error(f"Error in apply_watermark: {error_trace}")
         return JsonResponse({'error': 'Internal server error', 'details': str(e)}, status=500)
 
-@csrf_exempt
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def verify_watermark(request):
     """Verify if a suspicious image matches the original watermark"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
-    
     try:
+        # If watermark_id/image_id provided, validate ownership first to avoid expensive image parsing
+        watermark_id = request.POST.get('watermark_id') or request.data.get('watermark_id')
+        image_id = request.POST.get('image_id') or request.data.get('image_id')
+        if watermark_id or image_id:
+            watermark_record = _get_watermark_record(watermark_id, image_id, request.user)
+            if isinstance(watermark_record, JsonResponse):
+                return watermark_record
+
         # Validate uploaded file
         uploaded_file = request.FILES.get('image')
         if not uploaded_file:
             return JsonResponse({'error': 'Image file is required for verification.'}, status=400)
-        
+
         validate_image_file(uploaded_file)
-        
+
         # Load suspicious image
         suspicious_array = ImageProcessor.process_uploaded_image(uploaded_file)
-        
-        # Get watermark record
-        watermark_id = request.POST.get('watermark_id')
-        image_id = request.POST.get('image_id')
-        watermark_record = _get_watermark_record(watermark_id, image_id)
-        if isinstance(watermark_record, JsonResponse):
-            return watermark_record
-        
+
+        # If watermark_record wasn't resolved earlier, try now (no ownership check requested)
+        if not (watermark_id or image_id):
+            watermark_id = None
+            image_id = None
+            watermark_record = _get_watermark_record(watermark_id, image_id)
+            if isinstance(watermark_record, JsonResponse):
+                return watermark_record
+
         # Verify watermark
         watermark_service = WatermarkService()
         verification_result = watermark_service.extract_and_verify(suspicious_array, watermark_record)
-        
+
         if not verification_result['success']:
             return JsonResponse({'error': verification_result['error']}, status=500)
-        
+
         # Determine status
         status, confidence, reason = VerificationLogic.determine_status(
             verification_result['hamming_distance'],
@@ -157,18 +161,18 @@ def verify_watermark(request):
             verification_result['decrypted_hash'],
             watermark_record.perceptual_hash
         )
-        
+
         # Update record
         watermark_record.phash_distance = verification_result['hamming_distance']
         watermark_record.correlation_score = verification_result['watermark_similarity']
         watermark_record.save()
-        
+
         # Create visual overlay (optional)
         overlay_url, comparison_url, statistics = _create_visual_overlay(
-            watermark_record.watermarked_image.path, 
+            watermark_record.watermarked_image.path,
             suspicious_array
         )
-        
+
         # Build response
         response_data = ResponseBuilder.build_verification_response(
             status, confidence, reason,
@@ -180,7 +184,9 @@ def verify_watermark(request):
             verification_result['current_phash'],
             overlay_url, comparison_url, statistics
         )
-        
+
+        # Continue to create/update Report and attach images/metrics
+        # (existing logic below)
         # --- Create or update Report linking original image + suspicious image + overlay ---
         try:
             report = Report.objects.filter(image=watermark_record.original_image).first()
@@ -197,23 +203,16 @@ def verify_watermark(request):
 
             # Save suspicious (uploaded) image to report.suspicious_image
             try:
-                uploaded_file = request.FILES.get('image')
-                if uploaded_file:
-                    # Make sure to reset the file pointer in case it was read earlier
-                    try:
-                        uploaded_file.seek(0)
-                    except Exception:
-                        pass
-
-                    filename = uploaded_file.name or f"sus_{watermark_record.original_image.ImageID}_{int(time.time())}.png"
-                    report.suspicious_image.save(
-                        filename,
-                        ContentFile(uploaded_file.read())
-                    )
-                    report.suspicious_metadata = {
-                        'filename': filename,
-                        'size': report.suspicious_image.size if hasattr(report.suspicious_image, 'size') else uploaded_file.size,
-                    }
+                uploaded_file.seek(0)
+                filename = uploaded_file.name or f"sus_{watermark_record.original_image.ImageID}_{int(time.time())}.png"
+                report.suspicious_image.save(
+                    filename,
+                    ContentFile(uploaded_file.read())
+                )
+                report.suspicious_metadata = {
+                    'filename': filename,
+                    'size': report.suspicious_image.size if hasattr(report.suspicious_image, 'size') else uploaded_file.size,
+                }
             except Exception:
                 logger.exception('Failed saving suspicious image to report')
 
@@ -255,20 +254,9 @@ def verify_watermark(request):
         except Exception:
             pass
 
-        # Enrich response with report pointers if available
-        try:
-            if report:
-                response_data['report_id'] = str(report.report_id)
-                if report.suspicious_image:
-                    response_data['suspicious_image_url'] = report.suspicious_image.url
-                if report.heatmap_image:
-                    response_data['heatmap_image_url'] = report.heatmap_image.url
-        except Exception:
-            pass
-
-        # Return response
+        # Use safe_json_response
         return safe_json_response(response_data)
-        
+
     except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
@@ -276,25 +264,24 @@ def verify_watermark(request):
         logger.error(f"ERROR in verify_watermark: {error_trace}")
         return JsonResponse({'error': 'Internal server error', 'details': str(e)}, status=500)
 
-@csrf_exempt
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def auto_verify_watermark(request):
     """Automatically detect and verify watermark without requiring watermark_id"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
-    
     try:
         # Validate and load image
         uploaded_file = request.FILES.get('image')
         if not uploaded_file:
             return JsonResponse({'error': 'Image file is required for verification.'}, status=400)
-        
+
         validate_image_file(uploaded_file)
         suspicious_array = ImageProcessor.process_uploaded_image(uploaded_file)
-        
+
         # Auto-detect watermark
         detector = WatermarkAutoDetector()
         detection_result = detector.auto_detect(suspicious_array)
-        
+
         if not detection_result['watermark_id']:
             return safe_json_response({
                 'status': 'no_watermark_detected',
@@ -306,22 +293,24 @@ def auto_verify_watermark(request):
                 ],
                 'detection_details': detection_result
             }, status=200)
-        
-        # Get watermark record
+
+        # Get watermark record and ensure it belongs to user
         try:
             watermark_record = WatermarkRecord.objects.get(id=detection_result['watermark_id'])
+            if watermark_record.original_image.user != request.user:
+                return JsonResponse({'error': 'Detected watermark does not belong to you'}, status=403)
         except WatermarkRecord.DoesNotExist:
             return JsonResponse({
                 'error': f'Detected watermark ID {detection_result["watermark_id"]} not found in database'
             }, status=404)
-        
+
         # Verify watermark (reuse the same logic as verify_watermark)
         watermark_service = WatermarkService()
         verification_result = watermark_service.extract_and_verify(suspicious_array, watermark_record)
-        
+
         if not verification_result['success']:
             return JsonResponse({'error': verification_result['error']}, status=500)
-        
+
         # Determine status
         status, confidence, reason = VerificationLogic.determine_status(
             verification_result['hamming_distance'],
@@ -330,18 +319,18 @@ def auto_verify_watermark(request):
             verification_result['decrypted_hash'],
             watermark_record.perceptual_hash
         )
-        
+
         # Update record
         watermark_record.phash_distance = verification_result['hamming_distance']
         watermark_record.correlation_score = verification_result['watermark_similarity']
         watermark_record.save()
-        
+
         # Create visual overlay (optional)
         overlay_url, _, statistics = _create_visual_overlay(
-            watermark_record.watermarked_image.path, 
+            watermark_record.watermarked_image.path,
             suspicious_array
         )
-        
+
         # Build verification response
         verification_response = {
             'verification': {'status': status, 'confidence': confidence, 'reason': reason},
@@ -355,13 +344,13 @@ def auto_verify_watermark(request):
             },
             'statistics': statistics
         }
-        
+
         # Build auto-detection response
         response_data = ResponseBuilder.build_auto_detection_response(
             detection_result, verification_response, overlay_url
         )
-        
-        # --- Create or update Report for auto-detection verification ---
+
+        # Create/update Report similar to verify flow
         try:
             report = Report.objects.filter(image=watermark_record.original_image).first()
             if not report:
@@ -377,23 +366,16 @@ def auto_verify_watermark(request):
 
             # Save suspicious (uploaded) image to report.suspicious_image
             try:
-                uploaded_file = request.FILES.get('image')
-                if uploaded_file:
-                    # Make sure to reset pointer in case the file was read earlier
-                    try:
-                        uploaded_file.seek(0)
-                    except Exception:
-                        pass
-
-                    filename = uploaded_file.name or f"sus_{watermark_record.original_image.ImageID}_{int(time.time())}.png"
-                    report.suspicious_image.save(
-                        filename,
-                        ContentFile(uploaded_file.read())
-                    )
-                    report.suspicious_metadata = {
-                        'filename': filename,
-                        'size': report.suspicious_image.size if hasattr(report.suspicious_image, 'size') else uploaded_file.size,
-                    }
+                uploaded_file.seek(0)
+                filename = uploaded_file.name or f"sus_{watermark_record.original_image.ImageID}_{int(time.time())}.png"
+                report.suspicious_image.save(
+                    filename,
+                    ContentFile(uploaded_file.read())
+                )
+                report.suspicious_metadata = {
+                    'filename': filename,
+                    'size': report.suspicious_image.size if hasattr(report.suspicious_image, 'size') else uploaded_file.size,
+                }
             except Exception:
                 logger.exception('Failed saving suspicious image to report')
 
@@ -421,9 +403,20 @@ def auto_verify_watermark(request):
         except Exception:
             logger.exception('Failed to create/update Report from auto verification')
 
-        # Return response
+        # Enrich response with report pointers if available
+        try:
+            if report:
+                response_data['report_id'] = str(report.report_id)
+                if report.suspicious_image:
+                    response_data['suspicious_image_url'] = report.suspicious_image.url
+                if report.heatmap_image:
+                    response_data['heatmap_image_url'] = report.heatmap_image.url
+        except Exception:
+            pass
+
+        # Use safe_json_response
         return safe_json_response(response_data)
-        
+
     except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
     except Exception as e:
@@ -432,15 +425,18 @@ def auto_verify_watermark(request):
         return JsonResponse({'error': 'Internal server error', 'details': str(e)}, status=500)
 
 # Helper functions (keep as is, but update returns)
-def _get_original_image(image_id):
-    """Get original image by ID"""
+def _get_original_image(image_id, user=None):
+    """Get original image by ID and optionally enforce ownership by `user`"""
     try:
         if isinstance(image_id, str):
             image_uuid = uuid.UUID(image_id)
         else:
             image_uuid = image_id
-        
-        return ImageModel.objects.get(ImageID=image_uuid)
+
+        img = ImageModel.objects.get(ImageID=image_uuid)
+        if user and img.user != user:
+            return JsonResponse({'error': 'Access denied for this image'}, status=403)
+        return img
     except ValueError:
         available_images = ImageModel.objects.all()[:5]
         available_ids = [str(img.ImageID) for img in available_images]
@@ -463,11 +459,14 @@ def _load_image_array(image_path):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-def _get_watermark_record(watermark_id, image_id):
+def _get_watermark_record(watermark_id, image_id, user=None):
     """Get watermark record by ID or image ID"""
     if watermark_id:
         try:
-            return WatermarkRecord.objects.get(id=watermark_id)
+            record = WatermarkRecord.objects.get(id=watermark_id)
+            if user and record.original_image.user != user:
+                return JsonResponse({'error': 'Access denied for this watermark record'}, status=403)
+            return record
         except WatermarkRecord.DoesNotExist:
             return JsonResponse({'error': f'Watermark record with ID {watermark_id} not found'}, status=404)
     elif image_id:
@@ -476,8 +475,11 @@ def _get_watermark_record(watermark_id, image_id):
                 image_uuid = uuid.UUID(image_id)
             else:
                 image_uuid = image_id
-            
-            record = WatermarkRecord.objects.filter(original_image__ImageID=image_uuid).first()
+            # Filter by requesting user if provided
+            qs = WatermarkRecord.objects.filter(original_image__ImageID=image_uuid)
+            if user:
+                qs = qs.filter(original_image__user=user)
+            record = qs.first()
             if not record:
                 return JsonResponse({'error': f'No watermark found for image ID {image_id}'}, status=404)
             return record

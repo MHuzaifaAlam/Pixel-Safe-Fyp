@@ -132,11 +132,11 @@
                         <div class="meta-subtitle">Original Image Metadata</div>
                         <div class="metadata-display">
                             {% if original_metadata %}
-                                {% for key, value in original_metadata.items %}
-                                    <div><strong>{{ key }}:</strong> {{ value }}</div>
-                                {% endfor %}
+                            {% for key, value in original_metadata.items %}
+                            <div><strong>{{ key }}:</strong> {{ value }}</div>
+                            {% endfor %}
                             {% else %}
-                                <div>No original metadata found.</div>
+                            <div>No original metadata found.</div>
                             {% endif %}
                         </div>
                     </div>
@@ -145,11 +145,11 @@
                         <div class="meta-subtitle">Suspected Image Metadata</div>
                         <div class="metadata-display">
                             {% if suspicious_metadata %}
-                                {% for key, value in suspicious_metadata.items %}
-                                    <div><strong>{{ key }}:</strong> {{ value }}</div>
-                                {% endfor %}
+                            {% for key, value in suspicious_metadata.items %}
+                            <div><strong>{{ key }}:</strong> {{ value }}</div>
+                            {% endfor %}
                             {% else %}
-                                <div>No suspicious metadata available.</div>
+                            <div>No suspicious metadata available.</div>
                             {% endif %}
                         </div>
                     </div>
@@ -165,11 +165,11 @@
                         <strong>Verification Summary</strong>
                         <div class="metadata-display mt-10">
                             {% if verification_metrics %}
-                                <div>Hamming distance: {{ verification_metrics.hamming_distance }}</div>
-                                <div>Watermark similarity: {{ verification_metrics.watermark_similarity }}</div>
-                                <div>Decryption success: {{ verification_metrics.decryption_success }}</div>
+                            <div>Hamming distance: {{ verification_metrics.hamming_distance }}</div>
+                            <div>Watermark similarity: {{ verification_metrics.watermark_similarity }}</div>
+                            <div>Decryption success: {{ verification_metrics.decryption_success }}</div>
                             {% else %}
-                                <div>No verification metrics available.</div>
+                            <div>No verification metrics available.</div>
                             {% endif %}
                         </div>
                     </div>
@@ -178,11 +178,11 @@
                         <strong>Visual Comparison</strong>
                         <div class="metadata-display mt-10">
                             {% if comparison_stats %}
-                                {% for key, value in comparison_stats.items %}
-                                    <div><strong>{{ key|capfirst }}:</strong> {{ value }}</div>
-                                {% endfor %}
+                            {% for key, value in comparison_stats.items %}
+                            <div><strong>{{ key|capfirst }}:</strong> {{ value }}</div>
+                            {% endfor %}
                             {% else %}
-                                <div>No visual comparison data available.</div>
+                            <div>No visual comparison data available.</div>
                             {% endif %}
                         </div>
                     </div>
@@ -197,9 +197,9 @@
                 </div>
                 {% endif %}
             </div>
-            
-            
-            
+
+
+
 
             <!-- Chain of Custody -->
             <div class="detail-card">
