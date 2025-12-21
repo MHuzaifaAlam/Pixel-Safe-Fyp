@@ -38,6 +38,58 @@ class WatermarkEngine:
         rgb = np.clip(rgb, 0, 255).astype(np.uint8)
         return rgb
     
+    #---------------------------------------------------------------
+
+    # Add this method to WatermarkEngine class
+    def embed_with_id(self, image_array, secret_data, watermark_id):
+        """
+        Embed watermark with ID included in the payload
+        """
+        # Create structured payload
+        payload = {
+            'watermark_id': str(watermark_id),
+            'data': secret_data,
+            'version': '1.0'
+        }
+        
+        # Convert to bytes
+        import json
+        payload_bytes = json.dumps(payload).encode('utf-8')
+        
+        # Embed the structured payload
+        return self.embed_watermark(image_array, payload_bytes)
+    
+    # Also add this method for extraction
+    def extract_with_id(self, image_array, num_bits):
+        """
+        Extract watermark and try to parse structured payload
+        """
+        extracted_bits = self.extract_watermark(image_array, num_bits)
+        extracted_bytes = self._bits_to_bytes(extracted_bits)
+        
+        try:
+            # Try to parse as JSON
+            import json
+            payload = json.loads(extracted_bytes.decode('utf-8', errors='ignore').strip('\x00'))
+            
+            if 'watermark_id' in payload and 'data' in payload:
+                return {
+                    'success': True,
+                    'watermark_id': payload['watermark_id'],
+                    'data': payload['data'].encode('latin-1') if isinstance(payload['data'], str) else payload['data'],
+                    'full_payload': payload
+                }
+        except:
+            pass
+        
+        # If structured parsing fails, return raw bytes
+        return {
+            'success': False,
+            'raw_data': extracted_bytes
+        }
+    
+    #---------------------------------------------------------------
+    
     def embed_watermark(self, image_array, secret_data):
         """
         Embed secret data into image using DWT-DCT
