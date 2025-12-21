@@ -3,7 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.files.base import ContentFile
 from django.conf import settings
 from django.core.files.storage import default_storage
-import json,uuid,traceback,os,time,logging
+import json, uuid, traceback, os, time, logging
 
 from imageapp.models import Image as ImageModel
 from .models import WatermarkRecord
@@ -16,6 +16,33 @@ from .utils.auto_detector import WatermarkAutoDetector
 from .utils.helpers import validate_image_file
 
 logger = logging.getLogger(__name__)
+
+# Add this helper function
+def safe_json_response(data, status=200):
+    """Safely convert data to JSON, handling bytes and other non-serializable types"""
+    import json as json_module
+    
+    def convert_for_json(obj):
+        if isinstance(obj, bytes):
+            return obj.hex()  # Convert bytes to hex string
+        elif isinstance(obj, dict):
+            return {k: convert_for_json(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [convert_for_json(item) for item in obj]
+        elif hasattr(obj, '__dict__'):
+            # Handle objects
+            return convert_for_json(obj.__dict__)
+        else:
+            return obj
+    
+    try:
+        # Try normal serialization first
+        json_str = json_module.dumps(data)
+        return JsonResponse(data, status=status, safe=False)
+    except (TypeError, ValueError) as e:
+        # If fails, convert problematic types
+        safe_data = convert_for_json(data)
+        return JsonResponse(safe_data, status=status, safe=False)
 
 @csrf_exempt
 def apply_watermark(request):
@@ -47,7 +74,7 @@ def apply_watermark(request):
         # Create watermark record
         watermark_record = WatermarkRecord.objects.create(
             original_image=original_image,
-            perceptual_hash="",  # Will be d
+            perceptual_hash="",  # Will be updated
             encrypted_hash=b"",
             aes_key_encrypted=b"",
             aes_iv_encrypted=b""
@@ -61,11 +88,11 @@ def apply_watermark(request):
             watermark_record.delete()
             return JsonResponse({'error': result['error']}, status=500)
         
-        #  watermark record with results
+        # Update watermark record with results
         watermark_record.perceptual_hash = result['phash']
-        watermark_record.encrypted_hash = result['encrypted_data']['ciphertext']
-        watermark_record.aes_key_encrypted = result['encrypted_data']['key']
-        watermark_record.aes_iv_encrypted = result['encrypted_data']['iv']
+        watermark_record.encrypted_hash = result['encrypted_data']['ciphertext']  # This is bytes
+        watermark_record.aes_key_encrypted = result['encrypted_data']['key']  # This is bytes
+        watermark_record.aes_iv_encrypted = result['encrypted_data']['iv']  # This is bytes
         
         # Save watermarked image
         watermarked_data = ImageProcessor.save_image_array(result['watermarked_array'], 'PNG')
@@ -75,15 +102,15 @@ def apply_watermark(request):
         )
         watermark_record.save()
         
-        #  original image status
+        # Update original image status
         original_image.Status = 'protected'
         original_image.save()
         
         logger.info(f"Watermark applied successfully to image {image_id}")
         
-        # Return response
+        # Return response - Use safe_json_response
         response_data = ResponseBuilder.build_apply_response(watermark_record, original_image)
-        return JsonResponse(response_data)
+        return safe_json_response(response_data)
         
     except Exception as e:
         error_trace = traceback.format_exc()
@@ -130,7 +157,7 @@ def verify_watermark(request):
             watermark_record.perceptual_hash
         )
         
-        #  record
+        # Update record
         watermark_record.phash_distance = verification_result['hamming_distance']
         watermark_record.correlation_score = verification_result['watermark_similarity']
         watermark_record.save()
@@ -153,7 +180,8 @@ def verify_watermark(request):
             overlay_url, comparison_url, statistics
         )
         
-        return JsonResponse(response_data)
+        # Use safe_json_response
+        return safe_json_response(response_data)
         
     except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -182,7 +210,7 @@ def auto_verify_watermark(request):
         detection_result = detector.auto_detect(suspicious_array)
         
         if not detection_result['watermark_id']:
-            return JsonResponse({
+            return safe_json_response({
                 'status': 'no_watermark_detected',
                 'message': 'Could not identify the source image automatically.',
                 'suggestions': [
@@ -217,7 +245,7 @@ def auto_verify_watermark(request):
             watermark_record.perceptual_hash
         )
         
-        #  record
+        # Update record
         watermark_record.phash_distance = verification_result['hamming_distance']
         watermark_record.correlation_score = verification_result['watermark_similarity']
         watermark_record.save()
@@ -247,7 +275,8 @@ def auto_verify_watermark(request):
             detection_result, verification_response, overlay_url
         )
         
-        return JsonResponse(response_data)
+        # Use safe_json_response
+        return safe_json_response(response_data)
         
     except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
@@ -256,7 +285,7 @@ def auto_verify_watermark(request):
         logger.error(f"ERROR in auto_verify_watermark: {error_trace}")
         return JsonResponse({'error': 'Internal server error', 'details': str(e)}, status=500)
 
-# Helper functions
+# Helper functions (keep as is, but update returns)
 def _get_original_image(image_id):
     """Get original image by ID"""
     try:

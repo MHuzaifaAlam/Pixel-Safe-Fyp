@@ -28,15 +28,15 @@ class WatermarkService:
             return {
                 'success': True,
                 'watermarked_array': watermarked_array,
-                'phash': phash,
-                'encrypted_data': encrypted_data
+                'phash': phash,  # This is a string
+                'encrypted_data': encrypted_data  # Contains bytes
             }
         except Exception as e:
             logger.error(f"Error applying watermark: {e}")
             return {'success': False, 'error': str(e)}
     
     def extract_and_verify(self, suspicious_array, watermark_record):
-        """Extract and verify watermark from suspicious image"""
+        """Extract and verify watermark from suspicious image - ALL values are JSON serializable"""
         try:
             # Extract watermark
             num_bits = len(watermark_record.encrypted_hash) * 8
@@ -54,7 +54,7 @@ class WatermarkService:
             else:
                 watermark_similarity = 0
             
-            # Try decryption
+            # Try decryption - NOW returns string only
             decryption_success, decrypted_hash = self._try_decryption(
                 extracted_bytes, watermark_record
             )
@@ -64,13 +64,14 @@ class WatermarkService:
             original_phash = watermark_record.perceptual_hash
             hamming_distance = PerceptualHasher.hamming_distance(current_phash, original_phash)
             
+            # ALL values are JSON serializable now
             return {
                 'success': True,
-                'watermark_similarity': watermark_similarity,
-                'decryption_success': decryption_success,
-                'decrypted_hash': decrypted_hash,
-                'current_phash': current_phash,
-                'hamming_distance': hamming_distance
+                'watermark_similarity': float(watermark_similarity),  # Float
+                'decryption_success': bool(decryption_success),       # Bool
+                'decrypted_hash': str(decrypted_hash),                # String
+                'current_phash': str(current_phash),                  # String
+                'hamming_distance': int(hamming_distance)             # Int
             }
             
         except Exception as e:
@@ -78,23 +79,19 @@ class WatermarkService:
             return {'success': False, 'error': str(e)}
     
     def _try_decryption(self, extracted_bytes, watermark_record):
-        """Try to decrypt extracted bytes"""
+        """Try to decrypt extracted bytes - ALWAYS returns string"""
         try:
             if len(extracted_bytes) != len(watermark_record.encrypted_hash):
                 extracted_bytes = extracted_bytes[:len(watermark_record.encrypted_hash)]
             
-            decrypted_bytes = self.aes_manager.decrypt(
+            # This now returns string (fixed in AESManager)
+            decrypted_hash = self.aes_manager.decrypt(
                 extracted_bytes,
                 watermark_record.aes_iv_encrypted,
                 watermark_record.aes_key_encrypted
             )
             
-            try:
-                decrypted_hash = decrypted_bytes.decode('utf-8').strip()
-            except UnicodeDecodeError:
-                decrypted_bytes = decrypted_bytes.rstrip(b'\x00')
-                decrypted_hash = decrypted_bytes.decode('utf-8')
-            
             return True, decrypted_hash
-        except:
+        except Exception as e:
+            logger.error(f"Decryption failed: {e}")
             return False, ""

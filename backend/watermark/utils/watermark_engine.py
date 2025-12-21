@@ -6,6 +6,7 @@ from Crypto.Random import get_random_bytes
 import pywt
 from PIL import Image
 import io
+import json
 
 class WatermarkEngine:
     def __init__(self, block_size=8, alpha=0.03):
@@ -38,9 +39,6 @@ class WatermarkEngine:
         rgb = np.clip(rgb, 0, 255).astype(np.uint8)
         return rgb
     
-    #---------------------------------------------------------------
-
-    # Add this method to WatermarkEngine class
     def embed_with_id(self, image_array, secret_data, watermark_id):
         """
         Embed watermark with ID included in the payload
@@ -48,18 +46,16 @@ class WatermarkEngine:
         # Create structured payload
         payload = {
             'watermark_id': str(watermark_id),
-            'data': secret_data,
+            'data': secret_data.hex() if isinstance(secret_data, bytes) else secret_data,
             'version': '1.0'
         }
         
         # Convert to bytes
-        import json
         payload_bytes = json.dumps(payload).encode('utf-8')
         
         # Embed the structured payload
         return self.embed_watermark(image_array, payload_bytes)
     
-    # Also add this method for extraction
     def extract_with_id(self, image_array, num_bits):
         """
         Extract watermark and try to parse structured payload
@@ -69,14 +65,22 @@ class WatermarkEngine:
         
         try:
             # Try to parse as JSON
-            import json
-            payload = json.loads(extracted_bytes.decode('utf-8', errors='ignore').strip('\x00'))
+            payload_str = extracted_bytes.decode('utf-8', errors='ignore').strip('\x00')
+            payload = json.loads(payload_str)
             
             if 'watermark_id' in payload and 'data' in payload:
+                # Convert hex string back to bytes if needed
+                data = payload['data']
+                if isinstance(data, str):
+                    try:
+                        data = bytes.fromhex(data)
+                    except:
+                        data = data.encode('latin-1')
+                
                 return {
                     'success': True,
-                    'watermark_id': payload['watermark_id'],
-                    'data': payload['data'].encode('latin-1') if isinstance(payload['data'], str) else payload['data'],
+                    'watermark_id': int(payload['watermark_id']),
+                    'data': data,
                     'full_payload': payload
                 }
         except:
@@ -87,8 +91,6 @@ class WatermarkEngine:
             'success': False,
             'raw_data': extracted_bytes
         }
-    
-    #---------------------------------------------------------------
     
     def embed_watermark(self, image_array, secret_data):
         """
@@ -261,7 +263,7 @@ class AESManager:
             self.key = key
     
     def encrypt(self, plaintext):
-        """Encrypt data"""
+        """Encrypt data - always returns bytes"""
         if isinstance(plaintext, str):
             plaintext = plaintext.encode('utf-8')
         
@@ -276,7 +278,13 @@ class AESManager:
         }
     
     def decrypt(self, ciphertext, iv, key):
-        """Decrypt data"""
+        """Decrypt data - returns STRING, not bytes"""
         cipher = AES.new(key, AES.MODE_CBC, iv)
         decrypted = unpad(cipher.decrypt(ciphertext), AES.block_size)
-        return decrypted
+        
+        # Try to decode as UTF-8 string
+        try:
+            return decrypted.decode('utf-8').strip()
+        except UnicodeDecodeError:
+            # If it's not valid UTF-8, return as hex string
+            return decrypted.hex()
