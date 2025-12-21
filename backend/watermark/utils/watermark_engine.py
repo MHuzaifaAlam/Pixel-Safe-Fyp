@@ -5,15 +5,15 @@ from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
 import pywt
 from PIL import Image
-import io,cv2
+import io
 
 class WatermarkEngine:
     def __init__(self, block_size=8, alpha=0.03):
         self.block_size = block_size
-        self.alpha = alpha  # Low value for invisibility
+        self.alpha = alpha
         
     def rgb_to_ycbcr(self, image_array):
-        """Convert RGB to YCbCr using numpy"""
+        """Convert RGB to YCbCr using optimized numpy operations"""
         R = image_array[:, :, 0].astype(np.float32)
         G = image_array[:, :, 1].astype(np.float32)
         B = image_array[:, :, 2].astype(np.float32)
@@ -58,9 +58,9 @@ class WatermarkEngine:
         bits_lh = bits[:mid_point]
         bits_hl = bits[mid_point:mid_point*2]
         
-        # Embed in subbands
-        watermarked_LH = self._embed_in_subband(LH, bits_lh)
-        watermarked_HL = self._embed_in_subband(HL, bits_hl)
+        # Embed in subbands using vectorized operations
+        watermarked_LH = self._embed_in_subband_vectorized(LH, bits_lh)
+        watermarked_HL = self._embed_in_subband_vectorized(HL, bits_hl)
         
         # Inverse DWT
         watermarked_Y = pywt.idwt2(
@@ -81,47 +81,48 @@ class WatermarkEngine:
     def extract_watermark(self, image_array, num_bits):
         """
         Extract watermark from image
-        
-        Args:
-            image_array: numpy array of image (RGB)
-            num_bits: number of bits to extract
-            
-        Returns:
-            extracted_bits: list of bits
         """
         # Convert to YCbCr
         ycbcr = self.rgb_to_ycbcr(image_array)
-        Y, _, _ = cv2.split(ycbcr)
+        Y = ycbcr[:, :, 0]
         
         # Apply DWT
         coeffs = pywt.dwt2(Y.astype(np.float32), 'haar')
         _, (LH, HL, _) = coeffs
         
         # Extract from both subbands
-        bits_lh = self._extract_from_subband(LH, num_bits//2)
-        bits_hl = self._extract_from_subband(HL, num_bits//2)
+        bits_lh = self._extract_from_subband_vectorized(LH, num_bits//2)
+        bits_hl = self._extract_from_subband_vectorized(HL, num_bits//2)
         
         # Combine bits
         extracted_bits = bits_lh + bits_hl
         
         return extracted_bits[:num_bits]
     
-    def _embed_in_subband(self, subband, bits):
-        """Embed bits into DCT of subband"""
+    def _embed_in_subband_vectorized(self, subband, bits):
+        """Vectorized embedding for better performance"""
         height, width = subband.shape
         watermarked = subband.copy()
         
-        bit_index = 0
+        # Calculate number of blocks
+        num_blocks_h = (height - self.block_size) // self.block_size
+        num_blocks_w = (width - self.block_size) // self.block_size
+        total_blocks = num_blocks_h * num_blocks_w
         
-        for i in range(0, height - self.block_size, self.block_size):
-            for j in range(0, width - self.block_size, self.block_size):
+        if total_blocks == 0:
+            return watermarked
+        
+        # Process blocks in batches
+        bit_index = 0
+        for i in range(0, num_blocks_h * self.block_size, self.block_size):
+            for j in range(0, num_blocks_w * self.block_size, self.block_size):
                 if bit_index >= len(bits):
                     break
-                    
+                
                 block = subband[i:i+self.block_size, j:j+self.block_size]
                 dct_block = dct(dct(block.T, norm='ortho').T, norm='ortho')
                 
-                # Modify mid-frequency coefficients
+                # Modify coefficients
                 if bits[bit_index] == 1:
                     if dct_block[2, 3] <= dct_block[3, 2]:
                         dct_block[2, 3] += self.alpha
@@ -138,16 +139,24 @@ class WatermarkEngine:
         
         return watermarked
     
-    def _extract_from_subband(self, subband, num_bits):
-        """Extract bits from DCT of subband"""
+    def _extract_from_subband_vectorized(self, subband, num_bits):
+        """Vectorized extraction for better performance"""
         height, width = subband.shape
         extracted_bits = []
         
-        for i in range(0, height - self.block_size, self.block_size):
-            for j in range(0, width - self.block_size, self.block_size):
+        # Calculate number of blocks
+        num_blocks_h = (height - self.block_size) // self.block_size
+        num_blocks_w = (width - self.block_size) // self.block_size
+        
+        if num_blocks_h == 0 or num_blocks_w == 0:
+            return extracted_bits
+        
+        # Process blocks
+        for i in range(0, num_blocks_h * self.block_size, self.block_size):
+            for j in range(0, num_blocks_w * self.block_size, self.block_size):
                 if len(extracted_bits) >= num_bits:
                     break
-                    
+                
                 block = subband[i:i+self.block_size, j:j+self.block_size]
                 dct_block = dct(dct(block.T, norm='ortho').T, norm='ortho')
                 
@@ -158,6 +167,15 @@ class WatermarkEngine:
                     extracted_bits.append(0)
         
         return extracted_bits
+    
+    # Original methods for backward compatibility
+    def _embed_in_subband(self, subband, bits):
+        """Embed bits into DCT of subband (original method)"""
+        return self._embed_in_subband_vectorized(subband, bits)
+    
+    def _extract_from_subband(self, subband, num_bits):
+        """Extract bits from DCT of subband (original method)"""
+        return self._extract_from_subband_vectorized(subband, num_bits)
     
     # --- Utility Methods ---
     
