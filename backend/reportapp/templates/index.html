@@ -127,21 +127,75 @@
             <!-- Metadata -->
             <div class="detail-card">
                 <h2 class="detail-title">Technical Metadata</h2>
-            
-                <div class="meta-grid">
-                    {% if metadata %}
-                        {% for key, value in metadata.items %}
-                            <div class="meta-item">
-                                <span class="meta-key">{{ key }}:</span>
-                                <span class="meta-value">{{ value }}</span>
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="meta-item">
-                            No metadata found.
+                <div class="meta-compare">
+                    <div class="meta-col">
+                        <div class="meta-subtitle">Original Image Metadata</div>
+                        <div class="metadata-display">
+                            {% if original_metadata %}
+                                {% for key, value in original_metadata.items %}
+                                    <div><strong>{{ key }}:</strong> {{ value }}</div>
+                                {% endfor %}
+                            {% else %}
+                                <div>No original metadata found.</div>
+                            {% endif %}
                         </div>
-                    {% endif %}
+                    </div>
+
+                    <div class="meta-col">
+                        <div class="meta-subtitle">Suspected Image Metadata</div>
+                        <div class="metadata-display">
+                            {% if suspicious_metadata %}
+                                {% for key, value in suspicious_metadata.items %}
+                                    <div><strong>{{ key }}:</strong> {{ value }}</div>
+                                {% endfor %}
+                            {% else %}
+                                <div>No suspicious metadata available.</div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
+            </div>
+
+            <!-- Suspicious Image & Verification -->
+            <div class="detail-card">
+                <h2 class="detail-title">Verification & Comparison</h2>
+
+                <div class="meta-grid">
+                    <div>
+                        <strong>Verification Summary</strong>
+                        <div class="metadata-display mt-10">
+                            {% if verification_metrics %}
+                                <div>Hamming distance: {{ verification_metrics.hamming_distance }}</div>
+                                <div>Watermark similarity: {{ verification_metrics.watermark_similarity }}</div>
+                                <div>Decryption success: {{ verification_metrics.decryption_success }}</div>
+                            {% else %}
+                                <div>No verification metrics available.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div>
+                        <strong>Visual Comparison</strong>
+                        <div class="metadata-display mt-10">
+                            {% if comparison_stats %}
+                                {% for key, value in comparison_stats.items %}
+                                    <div><strong>{{ key|capfirst }}:</strong> {{ value }}</div>
+                                {% endfor %}
+                            {% else %}
+                                <div>No visual comparison data available.</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if heatmap_img_url %}
+                <div class="mt-15">
+                    <strong>Heatmap / Comparison Image</strong>
+                    <div class="image-container mt-10" style="min-height:150px;">
+                        <img src="{{ heatmap_img_url }}" alt="Heatmap">
+                    </div>
+                </div>
+                {% endif %}
             </div>
             
             

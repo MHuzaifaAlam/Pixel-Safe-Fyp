@@ -7,6 +7,7 @@ import json, uuid, traceback, os, time, logging
 
 from imageapp.models import Image as ImageModel
 from .models import WatermarkRecord
+from reportapp.models import Report
 from .utils.image_processor import ImageProcessor
 from .utils.watermark_service import WatermarkService
 from .utils.verification_logic import VerificationLogic
@@ -180,7 +181,92 @@ def verify_watermark(request):
             overlay_url, comparison_url, statistics
         )
         
-        # Use safe_json_response
+        # --- Create or update Report linking original image + suspicious image + overlay ---
+        try:
+            report = Report.objects.filter(image=watermark_record.original_image).first()
+            if not report:
+                report = Report.objects.create(
+                    user=watermark_record.original_image.user,
+                    image=watermark_record.original_image,
+                    score=0,
+                    watermark_status=('Valid' if verification_result.get('decryption_success') else 'Invalid'),
+                    status=response_data.get('verification', {}).get('status', ''),
+                    notes=response_data.get('verification', {}).get('reason', ''),
+                    metadata=(watermark_record.original_image.metadata if hasattr(watermark_record.original_image, 'metadata') else {})
+                )
+
+            # Save suspicious (uploaded) image to report.suspicious_image
+            try:
+                uploaded_file = request.FILES.get('image')
+                if uploaded_file:
+                    # Make sure to reset the file pointer in case it was read earlier
+                    try:
+                        uploaded_file.seek(0)
+                    except Exception:
+                        pass
+
+                    filename = uploaded_file.name or f"sus_{watermark_record.original_image.ImageID}_{int(time.time())}.png"
+                    report.suspicious_image.save(
+                        filename,
+                        ContentFile(uploaded_file.read())
+                    )
+                    report.suspicious_metadata = {
+                        'filename': filename,
+                        'size': report.suspicious_image.size if hasattr(report.suspicious_image, 'size') else uploaded_file.size,
+                    }
+            except Exception:
+                logger.exception('Failed saving suspicious image to report')
+
+            # Attach overlay image (if available)
+            try:
+                if overlay_url:
+                    overlay_rel = overlay_url.split(settings.MEDIA_URL)[-1]
+                    overlay_path = os.path.join(settings.MEDIA_ROOT, overlay_rel)
+                    if os.path.exists(overlay_path):
+                        with open(overlay_path, 'rb') as f:
+                            report.heatmap_image.save(os.path.basename(overlay_path), ContentFile(f.read()))
+            except Exception:
+                logger.exception('Failed attaching overlay to report')
+
+            # Store verification metrics (including visual statistics if available)
+            report.verification_metrics = {
+                'hamming_distance': int(verification_result.get('hamming_distance', -1)),
+                'watermark_similarity': float(verification_result.get('watermark_similarity', 0)),
+                'decryption_success': bool(verification_result.get('decryption_success', False)),
+                'current_phash': verification_result.get('current_phash'),
+                'visual_statistics': statistics or {},
+                'overlay_url': overlay_url,
+                'comparison_url': comparison_url
+            }
+            report.verification_status = response_data.get('verification', {}).get('status', '')
+            report.watermark_record = watermark_record
+            report.save()
+        except Exception:
+            logger.exception('Failed to create/update Report from verification')
+
+        # Enrich response with report pointers if available
+        try:
+            if report:
+                response_data['report_id'] = str(report.report_id)
+                if report.suspicious_image:
+                    response_data['suspicious_image_url'] = report.suspicious_image.url
+                if report.heatmap_image:
+                    response_data['heatmap_image_url'] = report.heatmap_image.url
+        except Exception:
+            pass
+
+        # Enrich response with report pointers if available
+        try:
+            if report:
+                response_data['report_id'] = str(report.report_id)
+                if report.suspicious_image:
+                    response_data['suspicious_image_url'] = report.suspicious_image.url
+                if report.heatmap_image:
+                    response_data['heatmap_image_url'] = report.heatmap_image.url
+        except Exception:
+            pass
+
+        # Return response
         return safe_json_response(response_data)
         
     except ValueError as e:
@@ -275,7 +361,67 @@ def auto_verify_watermark(request):
             detection_result, verification_response, overlay_url
         )
         
-        # Use safe_json_response
+        # --- Create or update Report for auto-detection verification ---
+        try:
+            report = Report.objects.filter(image=watermark_record.original_image).first()
+            if not report:
+                report = Report.objects.create(
+                    user=watermark_record.original_image.user,
+                    image=watermark_record.original_image,
+                    score=0,
+                    watermark_status=('Valid' if verification_result.get('decryption_success') else 'Invalid'),
+                    status=verification_response.get('verification', {}).get('status', ''),
+                    notes=verification_response.get('verification', {}).get('reason', ''),
+                    metadata=(watermark_record.original_image.metadata if hasattr(watermark_record.original_image, 'metadata') else {})
+                )
+
+            # Save suspicious (uploaded) image to report.suspicious_image
+            try:
+                uploaded_file = request.FILES.get('image')
+                if uploaded_file:
+                    # Make sure to reset pointer in case the file was read earlier
+                    try:
+                        uploaded_file.seek(0)
+                    except Exception:
+                        pass
+
+                    filename = uploaded_file.name or f"sus_{watermark_record.original_image.ImageID}_{int(time.time())}.png"
+                    report.suspicious_image.save(
+                        filename,
+                        ContentFile(uploaded_file.read())
+                    )
+                    report.suspicious_metadata = {
+                        'filename': filename,
+                        'size': report.suspicious_image.size if hasattr(report.suspicious_image, 'size') else uploaded_file.size,
+                    }
+            except Exception:
+                logger.exception('Failed saving suspicious image to report')
+
+            # Attach overlay image (if available)
+            try:
+                if overlay_url:
+                    overlay_rel = overlay_url.split(settings.MEDIA_URL)[-1]
+                    overlay_path = os.path.join(settings.MEDIA_ROOT, overlay_rel)
+                    if os.path.exists(overlay_path):
+                        with open(overlay_path, 'rb') as f:
+                            report.heatmap_image.save(os.path.basename(overlay_path), ContentFile(f.read()))
+            except Exception:
+                logger.exception('Failed attaching overlay to report')
+
+            # Store verification metrics (including visual statistics if available)
+            report.verification_metrics = {
+                'hamming_distance': verification_response.get('metrics', {}).get('visual', {}).get('hamming_distance'),
+                'watermark_similarity': verification_response.get('metrics', {}).get('watermark', {}).get('similarity'),
+                'visual_statistics': verification_response.get('statistics', {}),
+                'overlay_url': overlay_url
+            }
+            report.verification_status = verification_response.get('verification', {}).get('status', '')
+            report.watermark_record = watermark_record
+            report.save()
+        except Exception:
+            logger.exception('Failed to create/update Report from auto verification')
+
+        # Return response
         return safe_json_response(response_data)
         
     except ValueError as e:

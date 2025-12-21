@@ -264,6 +264,22 @@ body {
     border-bottom: 1px solid #1f2a31;
 }
 
+.meta-compare {
+    display: flex;
+    gap: 18px;
+}
+
+.meta-col {
+    flex: 1;
+}
+
+.meta-subtitle {
+    font-size: 10pt;
+    color: #c8ffee;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
 /* ========== ANALYSIS SUMMARY ========== */
 .summary-content {
     color: #a7c4d1;

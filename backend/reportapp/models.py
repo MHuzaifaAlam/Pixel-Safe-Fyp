@@ -3,6 +3,12 @@ import uuid
 from django.contrib.auth.models import User
 from imageapp.models import Image
 
+try:
+    # avoid circular import in some contexts
+    from watermark.models import WatermarkRecord
+except Exception:
+    WatermarkRecord = None
+
 # Create your models here.
 class Report(models.Model):
     report_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -27,3 +33,17 @@ class Report(models.Model):
     pdf = models.FileField(upload_to="reports/pdf/", null=True,blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # --- New fields to support suspicious image / verification integration ---
+    suspicious_image = models.ImageField(upload_to="reports/suspicious/", null=True, blank=True)
+    suspicious_metadata = models.JSONField(null=True, blank=True)
+    verification_metrics = models.JSONField(null=True, blank=True)
+    verification_status = models.CharField(max_length=50, null=True, blank=True)
+    # Link back to the watermark record (if verification used one)
+    watermark_record = models.ForeignKey(
+        'watermark.WatermarkRecord',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reports'
+    )

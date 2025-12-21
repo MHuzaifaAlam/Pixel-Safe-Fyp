@@ -43,11 +43,68 @@ class ReportViewSet(viewsets.ModelViewSet):
         # Check if report exists
         existing_report = Report.objects.filter(image=image).first()
         if existing_report:
-            return self._return_pdf_response(existing_report, request, "existing")
+            # If PDF already generated, return it; otherwise generate PDF from record
+            if existing_report.pdf and hasattr(existing_report.pdf, 'path') and os.path.exists(existing_report.pdf.path):
+                return self._return_pdf_response(existing_report, request, "existing")
+            else:
+                # Generate PDF from existing report data (suspicious info may be present)
+                report = self._create_report_from_record(existing_report, request)
+                return self._return_pdf_response(report, request, "generated")
         
-        # Create new report
+        # Create new report (no verification data available)
         report = self._create_single_report(image, request)
         return self._return_pdf_response(report, request, "new")
+
+    def _create_report_from_record(self, report, request=None):
+        """Generate PDF for an existing Report record and save the PDF file"""
+        # Use existing report data to build PDF
+        template = get_template("index.html")
+        base_url = request.build_absolute_uri('/') if request else 'http://127.0.0.1:8000/'
+
+        original_img_url = report.image.image.url if hasattr(report.image, 'image') else ''
+        tampered_img_url = report.suspicious_image.url if report.suspicious_image else ''
+        heatmap_img_url = report.heatmap_image.url if report.heatmap_image else ''
+
+        # Provide structured metadata and comparison stats for the template
+        original_metadata = report.image.metadata if hasattr(report.image, 'metadata') else {}
+        suspicious_metadata = report.suspicious_metadata or {}
+        comparison_stats = None
+        if report.verification_metrics and isinstance(report.verification_metrics, dict):
+            comparison_stats = report.verification_metrics.get('visual_statistics') or report.verification_metrics
+
+        context = {
+            "report_id": f"PSF-{str(report.report_id)[:8].upper()}",
+            "date": report.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "user": report.user.get_full_name() or report.user.username,
+            "score": report.score,
+            "watermark_status": report.watermark_status,
+            "status": report.status,
+            "notes": report.notes,
+            "metadata": report.metadata,
+            "original_metadata": original_metadata,
+            "suspicious_metadata": suspicious_metadata,
+            "file_hash": report.file_hash,
+            "file_path": report.file_path,
+            "original_img_url": original_img_url,
+            "tampered_img_url": tampered_img_url,
+            "heatmap_img_url": heatmap_img_url,
+            "verification_metrics": report.verification_metrics or {},
+            "verification_status": report.verification_status,
+            "comparison_stats": comparison_stats,
+        }
+
+        pdf_name = f"report-{report.report_id}.pdf"
+        pdf_path = os.path.join(settings.MEDIA_ROOT, "reports", "pdf", pdf_name)
+        os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+
+        html = template.render(context)
+        HTML(string=html, base_url=base_url).write_pdf(pdf_path)
+
+        # Update report.pdf field and save
+        report.pdf = f"reports/pdf/{pdf_name}"
+        report.save()
+
+        return report
 
     # ======================
     # BATCH REPORTS
@@ -180,6 +237,12 @@ class ReportViewSet(viewsets.ModelViewSet):
         if image_url and not image_url.startswith('http'):
             image_url = base_url.rstrip('/') + image_url
     
+        # Ensure metadata dicts are available for template rendering
+        try:
+            original_metadata = metadata if isinstance(metadata, dict) else {}
+        except Exception:
+            original_metadata = {}
+
         context = {
             "report_id": display_id,  # Display ID in PDF
             "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -189,11 +252,17 @@ class ReportViewSet(viewsets.ModelViewSet):
             "status": status_final,
             "notes": notes,
             "metadata": metadata,
+            "original_metadata": original_metadata,
             "file_hash": file_hash,
             "file_path": image.image.url if hasattr(image.image, 'url') else "",
             "original_img_url": image_url,
+            # The following three may be replaced when a suspicious image was provided
             "tampered_img_url": image_url,
-            "heatmap_img_url": image_url,
+            "heatmap_img_url": None,
+            "suspicious_metadata": None,
+            "verification_metrics": None,
+            "verification_status": None,
+            "comparison_stats": None,
         }
     
         html = template.render(context)
