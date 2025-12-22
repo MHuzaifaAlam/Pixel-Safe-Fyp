@@ -264,6 +264,22 @@ body {
     border-bottom: 1px solid #1f2a31;
 }
 
+.meta-compare {
+    display: flex;
+    gap: 18px;
+}
+
+.meta-col {
+    flex: 1;
+}
+
+.meta-subtitle {
+    font-size: 10pt;
+    color: #c8ffee;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
 /* ========== ANALYSIS SUMMARY ========== */
 .summary-content {
     color: #a7c4d1;
@@ -408,4 +424,30 @@ body {
     margin-top: 5px;
     color: #a7c4d1;
     font-size: 8pt;
+}
+
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 20px;   /* row-gap = 6px, column-gap = 20px */
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 0;
+    margin: 0;
+}
+
+.meta-item {
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.meta-key {
+    font-weight: bold;
+    color: #6bb8ff;
+}
+
+.meta-value {
+    color: #ddd;
+    word-break: break-word;
 }
