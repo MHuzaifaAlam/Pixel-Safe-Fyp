@@ -5,6 +5,8 @@ from django.http import FileResponse, HttpResponse
 from django.template.loader import get_template
 from weasyprint import HTML
 from django.conf import settings
+from django.core.files.base import ContentFile
+from urllib.parse import urljoin
 import uuid, os, hashlib, zipfile
 from datetime import datetime
 from io import BytesIO
@@ -40,18 +42,51 @@ class ReportViewSet(viewsets.ModelViewSet):
         except Image.DoesNotExist:
             return Response({"error": "Image not found or access denied"}, status=404)
 
-        # Check if report exists
+        # If a report already exists for this image, by default regenerate the PDF from the record
+        # (preserving any attached suspicious/heatmap images and verification metadata).
+        # If the client explicitly passes `force=true`, perform the old behavior of deleting
+        # the record and recreating a fresh report.
         existing_report = Report.objects.filter(image=image).first()
-        if existing_report:
-            # If PDF already generated, return it; otherwise generate PDF from record
-            if existing_report.pdf and hasattr(existing_report.pdf, 'path') and os.path.exists(existing_report.pdf.path):
-                return self._return_pdf_response(existing_report, request, "existing")
-            else:
-                # Generate PDF from existing report data (suspicious info may be present)
-                report = self._create_report_from_record(existing_report, request)
-                return self._return_pdf_response(report, request, "generated")
-        
-        # Create new report (no verification data available)
+        force = False
+        try:
+            force = bool(request.data.get('force', False))
+        except Exception:
+            force = False
+
+        if existing_report and not force:
+            # Regenerate PDF using existing report data (preserves heatmap/suspicious images)
+            report = self._create_report_from_record(existing_report, request)
+            return self._return_pdf_response(report, request, "regenerated")
+
+        if existing_report and force:
+            try:
+                # Remove files associated with the old report safely
+                if existing_report.pdf and hasattr(existing_report.pdf, 'path') and os.path.exists(existing_report.pdf.path):
+                    try:
+                        os.remove(existing_report.pdf.path)
+                    except Exception:
+                        try:
+                            existing_report.pdf.delete(save=False)
+                        except Exception:
+                            pass
+
+                try:
+                    if existing_report.suspicious_image:
+                        existing_report.suspicious_image.delete(save=False)
+                except Exception:
+                    pass
+
+                try:
+                    if existing_report.heatmap_image:
+                        existing_report.heatmap_image.delete(save=False)
+                except Exception:
+                    pass
+
+                existing_report.delete()
+            except Exception:
+                pass
+
+        # No existing report or force was requested: create a fresh report
         report = self._create_single_report(image, request)
         return self._return_pdf_response(report, request, "new")
 
@@ -64,6 +99,74 @@ class ReportViewSet(viewsets.ModelViewSet):
         original_img_url = report.image.image.url if hasattr(report.image, 'image') else ''
         tampered_img_url = report.suspicious_image.url if report.suspicious_image else ''
         heatmap_img_url = report.heatmap_image.url if report.heatmap_image else ''
+
+        # Normalize to absolute URLs using base_url when necessary
+        try:
+            if original_img_url and not original_img_url.startswith('http'):
+                original_img_url = urljoin(base_url, original_img_url.lstrip('/'))
+        except Exception:
+            pass
+        try:
+            if tampered_img_url and not tampered_img_url.startswith('http'):
+                tampered_img_url = urljoin(base_url, tampered_img_url.lstrip('/'))
+        except Exception:
+            pass
+        try:
+            if heatmap_img_url and not heatmap_img_url.startswith('http'):
+                heatmap_img_url = urljoin(base_url, heatmap_img_url.lstrip('/'))
+        except Exception:
+            pass
+
+        # Collect all watermarked images for this original image (may be multiple)
+        watermarked_images = []
+        try:
+            for wm in report.image.watermarks.all():
+                if getattr(wm, 'watermarked_image', None):
+                    url = wm.watermarked_image.url
+                    if url and not url.startswith('http'):
+                        url = base_url.rstrip('/') + url
+                    watermarked_images.append(url)
+        except Exception:
+            watermarked_images = []
+
+        # If a comparison overlay URL was saved in verification metrics, include it
+        comparison_img_url = ''
+        try:
+            if report.verification_metrics and isinstance(report.verification_metrics, dict):
+                comparison_img_url = report.verification_metrics.get('comparison_url') or ''
+        except Exception:
+            comparison_img_url = ''
+
+        # Ensure heatmap_img_url points to an existing file; prefer reports/heatmap then fall back to tamper_overlays
+        if not heatmap_img_url:
+            try:
+                preferred_dirs = [os.path.join(settings.MEDIA_ROOT, 'reports', 'heatmap'), os.path.join(settings.MEDIA_ROOT, 'tamper_overlays')]
+                found = False
+                for overlay_dir in preferred_dirs:
+                    if not os.path.isdir(overlay_dir):
+                        continue
+                    overlays = [f for f in os.listdir(overlay_dir) if f.startswith('overlay_') and f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                    if overlays:
+                        overlays.sort(key=lambda fn: os.path.getmtime(os.path.join(overlay_dir, fn)), reverse=True)
+                        heatmap_file = overlays[0]
+                        rel_path = os.path.relpath(os.path.join(overlay_dir, heatmap_file), settings.MEDIA_ROOT)
+                        heatmap_img_url = urljoin(base_url, os.path.join(settings.MEDIA_URL.lstrip('/'), rel_path))
+
+                        # Attach heatmap file to the report.heatmap_image if not already set
+                        try:
+                            if not report.heatmap_image:
+                                dst_rel = os.path.relpath(os.path.join(overlay_dir, heatmap_file), settings.MEDIA_ROOT).replace(os.sep, '/')
+                                report.heatmap_image = dst_rel
+                                report.save()
+                        except Exception:
+                            pass
+                        found = True
+                        break
+                if not found:
+                    # nothing found
+                    pass
+            except Exception:
+                pass
 
         # Provide structured metadata and comparison stats for the template
         original_metadata = report.image.metadata if hasattr(report.image, 'metadata') else {}
@@ -88,6 +191,8 @@ class ReportViewSet(viewsets.ModelViewSet):
             "original_img_url": original_img_url,
             "tampered_img_url": tampered_img_url,
             "heatmap_img_url": heatmap_img_url,
+            "comparison_img_url": comparison_img_url,
+            "watermarked_images": watermarked_images,
             "verification_metrics": report.verification_metrics or {},
             "verification_status": report.verification_status,
             "comparison_stats": comparison_stats,
@@ -259,7 +364,18 @@ class ReportViewSet(viewsets.ModelViewSet):
             # The following three may be replaced when a suspicious image was provided
             "tampered_img_url": image_url,
             "heatmap_img_url": None,
+            "comparison_img_url": None,
+            # collect watermarked versions if any exist for this original image
+            "watermarked_images": [
+                (base_url.rstrip('/') + wm.watermarked_image.url) if (hasattr(wm, 'watermarked_image') and wm.watermarked_image.url and not wm.watermarked_image.url.startswith('http')) else (wm.watermarked_image.url if hasattr(wm, 'watermarked_image') and wm.watermarked_image.url else None)
+                for wm in (image.watermarks.all() if hasattr(image, 'watermarks') else [])
+            ],
             "suspicious_metadata": None,
+            # Additional metadata fields to display in PDF
+            "file_name": getattr(image, 'fileName', None),
+            "format": getattr(image, 'format', None),
+            "image_size": getattr(image, 'ImageSize', None),
+            "image_id": str(getattr(image, 'ImageID', '')),
             "verification_metrics": None,
             "verification_status": None,
             "comparison_stats": None,

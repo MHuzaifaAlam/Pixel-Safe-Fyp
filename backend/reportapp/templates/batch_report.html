@@ -541,6 +541,27 @@
                 </div>
             </div>
 
+            <!-- Heatmap / Comparison (do not show watermarked image versions) -->
+            <div class="mt-15">
+                <h4 class="section-title" style="font-size:11pt;">Heatmap / Comparison</h4>
+                <div style="margin-top:10px;">
+                    <div class="image-container mt-10">
+                        {% if item.report.heatmap_image %}
+                        <img src="{{ item.report.heatmap_image.url }}" alt="Heatmap">
+                        {% elif item.report.verification_metrics and item.report.verification_metrics.overlay_url %}
+                        <img src="{{ item.report.verification_metrics.overlay_url }}" alt="Heatmap">
+                        {% elif item.report.verification_metrics and item.report.verification_metrics.comparison_url %}
+                        <img src="{{ item.report.verification_metrics.comparison_url }}" alt="Comparison">
+                        {% else %}
+                        <div class="image-placeholder">
+                            <div class="image-placeholder-icon">🔥</div>
+                            No heatmap available
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
             <!-- Image Metrics -->
             <div class="image-metrics">
                 <div class="metric-item">

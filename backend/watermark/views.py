@@ -222,8 +222,51 @@ def verify_watermark(request):
                     overlay_rel = overlay_url.split(settings.MEDIA_URL)[-1]
                     overlay_path = os.path.join(settings.MEDIA_ROOT, overlay_rel)
                     if os.path.exists(overlay_path):
-                        with open(overlay_path, 'rb') as f:
-                            report.heatmap_image.save(os.path.basename(overlay_path), ContentFile(f.read()))
+                        # Do not create a duplicate copy; point field to existing relative path
+                        try:
+                            rel = os.path.relpath(overlay_path, settings.MEDIA_ROOT).replace(os.sep, '/')
+                            report.heatmap_image = rel
+                            report.save()
+                        except Exception:
+                            # Fallback to copying if assignment fails
+                            with open(overlay_path, 'rb') as f:
+                                report.heatmap_image.save(os.path.basename(overlay_path), ContentFile(f.read()))
+                    else:
+                        # Fallback: try to locate overlay by scanning preferred dirs (reports/heatmap then tamper_overlays)
+                        preferred_dirs = [os.path.join(settings.MEDIA_ROOT, 'reports', 'heatmap'), os.path.join(settings.MEDIA_ROOT, 'tamper_overlays')]
+                        for overlay_dir in preferred_dirs:
+                            if os.path.isdir(overlay_dir):
+                                candidates = [f for f in os.listdir(overlay_dir) if f.startswith('overlay_') or f.startswith('comparison_')]
+                                if candidates:
+                                    candidates.sort(key=lambda fn: os.path.getmtime(os.path.join(overlay_dir, fn)), reverse=True)
+                                    chosen = candidates[0]
+                                    chosen_path = os.path.join(overlay_dir, chosen)
+                                    # Move chosen file into reports/heatmap if it is in tamper_overlays and not already in reports/heatmap
+                                    try:
+                                        dst_dir = os.path.join(settings.MEDIA_ROOT, 'reports', 'heatmap')
+                                        os.makedirs(dst_dir, exist_ok=True)
+                                        dst_path = os.path.join(dst_dir, chosen)
+                                        if os.path.abspath(chosen_path) != os.path.abspath(dst_path):
+                                            # move to canonical location
+                                            import shutil
+                                            if not os.path.exists(dst_path):
+                                                shutil.move(chosen_path, dst_path)
+                                            else:
+                                                # remove source if exists to avoid duplicates
+                                                try:
+                                                    os.remove(chosen_path)
+                                                except Exception:
+                                                    pass
+                                            rel = os.path.relpath(dst_path, settings.MEDIA_ROOT).replace(os.sep, '/')
+                                        else:
+                                            rel = os.path.relpath(chosen_path, settings.MEDIA_ROOT).replace(os.sep, '/')
+                                        report.heatmap_image = rel
+                                        report.save()
+                                    except Exception:
+                                        # fallback: copy if move/assign fails
+                                        with open(chosen_path, 'rb') as f:
+                                            report.heatmap_image.save(chosen, ContentFile(f.read()))
+                                    break
             except Exception:
                 logger.exception('Failed attaching overlay to report')
 
@@ -387,6 +430,19 @@ def auto_verify_watermark(request):
                     if os.path.exists(overlay_path):
                         with open(overlay_path, 'rb') as f:
                             report.heatmap_image.save(os.path.basename(overlay_path), ContentFile(f.read()))
+                    else:
+                        # fallback: look for latest overlay in reports/heatmap then tamper_overlays
+                        preferred_dirs = [os.path.join(settings.MEDIA_ROOT, 'reports', 'heatmap'), os.path.join(settings.MEDIA_ROOT, 'tamper_overlays')]
+                        for overlay_dir in preferred_dirs:
+                            if os.path.isdir(overlay_dir):
+                                candidates = [f for f in os.listdir(overlay_dir) if f.startswith('overlay_') or f.startswith('comparison_')]
+                                if candidates:
+                                    candidates.sort(key=lambda fn: os.path.getmtime(os.path.join(overlay_dir, fn)), reverse=True)
+                                    chosen = candidates[0]
+                                    chosen_path = os.path.join(overlay_dir, chosen)
+                                    with open(chosen_path, 'rb') as f:
+                                        report.heatmap_image.save(chosen, ContentFile(f.read()))
+                                    break
             except Exception:
                 logger.exception('Failed attaching overlay to report')
 
@@ -492,7 +548,8 @@ def _create_visual_overlay(original_path, suspicious_array):
     """Create visual overlay for tampering detection"""
     try:
         timestamp = int(time.time())
-        overlay_dir = os.path.join(settings.MEDIA_ROOT, 'tamper_overlays')
+        # Store overlays under reports/heatmap to have a canonical location for report images
+        overlay_dir = os.path.join(settings.MEDIA_ROOT, 'reports', 'heatmap')
         os.makedirs(overlay_dir, exist_ok=True)
         
         overlay_filename = f"overlay_{timestamp}.png"
@@ -502,7 +559,7 @@ def _create_visual_overlay(original_path, suspicious_array):
             original_path, suspicious_array, overlay_path
         )
         
-        overlay_url = default_storage.url(f'tamper_overlays/{overlay_filename}')
+        overlay_url = default_storage.url(f'reports/heatmap/{overlay_filename}')
         
         # Also create comparison
         comparison_filename = f"comparison_{timestamp}.png"
@@ -512,7 +569,7 @@ def _create_visual_overlay(original_path, suspicious_array):
             original_path, suspicious_array, comparison_path
         )
         
-        comparison_url = default_storage.url(f'tamper_overlays/{comparison_filename}')
+        comparison_url = default_storage.url(f'reports/heatmap/{comparison_filename}')
         
         return overlay_url, comparison_url, overlay_result.get('statistics')
     except Exception as e:

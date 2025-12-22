@@ -89,6 +89,19 @@
                 </div>
             </div>
 
+            <!-- Comparison image (if present) -->
+            {% if comparison_img_url or heatmap_img_url %}
+            <div class="mt-15">
+                <strong>Comparison / Heatmap Overlay</strong>
+                <div class="image-container mt-10" style="min-height:150px;">
+                    {% if heatmap_img_url %}
+                    <img src="{{ heatmap_img_url }}" alt="Heatmap">
+                    {% else %}
+                    <img src="{{ comparison_img_url }}" alt="Comparison Overlay">
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
             <!-- Metrics -->
             <div class="kpi-container">
                 <div class="kpi-item">
@@ -131,12 +144,24 @@
                     <div class="meta-col">
                         <div class="meta-subtitle">Original Image Metadata</div>
                         <div class="metadata-display">
+                            {% if file_name %}
+                            <div><strong>File Name:</strong> {{ file_name }}</div>
+                            {% endif %}
+                            {% if format %}
+                            <div><strong>Format:</strong> {{ format }}</div>
+                            {% endif %}
+                            {% if image_size %}
+                            <div><strong>Image Size (bytes):</strong> {{ image_size }}</div>
+                            {% endif %}
+                            {% if image_id %}
+                            <div><strong>Image ID:</strong> {{ image_id }}</div>
+                            {% endif %}
                             {% if original_metadata %}
                             {% for key, value in original_metadata.items %}
                             <div><strong>{{ key }}:</strong> {{ value }}</div>
                             {% endfor %}
                             {% else %}
-                            <div>No original metadata found.</div>
+                            <div>No additional original metadata found.</div>
                             {% endif %}
                         </div>
                     </div>
