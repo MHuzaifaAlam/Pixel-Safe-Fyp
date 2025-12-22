@@ -138,13 +138,30 @@ def verify_watermark(request):
         # Load suspicious image
         suspicious_array = ImageProcessor.process_uploaded_image(uploaded_file)
 
-        # If watermark_record wasn't resolved earlier, try now (no ownership check requested)
+        # If watermark_record wasn't resolved earlier, try automatic detection
         if not (watermark_id or image_id):
-            watermark_id = None
-            image_id = None
-            watermark_record = _get_watermark_record(watermark_id, image_id)
-            if isinstance(watermark_record, JsonResponse):
-                return watermark_record
+            # Try to auto-detect watermark id from the uploaded suspicious image
+            detector = WatermarkAutoDetector()
+            detection_result = detector.auto_detect(suspicious_array)
+
+            # If detector found a watermark id, validate it and ownership
+            if detection_result.get('watermark_id'):
+                try:
+                    watermark_record = WatermarkRecord.objects.get(id=detection_result['watermark_id'])
+                    if watermark_record.original_image.user != request.user:
+                        return JsonResponse({'error': 'Detected watermark does not belong to you'}, status=403)
+                except WatermarkRecord.DoesNotExist:
+                    # Detector found an id but it doesn't exist in DB - ask user to provide watermark_id
+                    return JsonResponse({
+                        'error': 'Automatic detection returned a watermark id that was not found in the database. Please provide `watermark_id` for manual verification.',
+                        'auto_detection': detection_result
+                    }, status=404)
+            else:
+                # No watermark could be detected automatically - ask the client to provide watermark_id
+                return JsonResponse({
+                    'error': 'Automatic watermark detection failed. Please provide `watermark_id` to verify manually.',
+                    'auto_detection': detection_result
+                }, status=400)
 
         # Verify watermark
         watermark_service = WatermarkService()
