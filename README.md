@@ -1,3 +1,12 @@
+# Pixel-Safe FYP
+
+A comprehensive digital image authentication and protection system using invisible watermarking technology.
+
+## 📖 Documentation
+
+For a detailed description of how the system works, including all main features and workflows, please refer to:
+- **[SYSTEM_DESCRIPTION.md](./SYSTEM_DESCRIPTION.md)** - Comprehensive system overview without code
+
 ## Getting Started
 
 ### 1️⃣ Clone the repository
