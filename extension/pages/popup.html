@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Safe</title>
+    <link rel="stylesheet" href="../styles/popup.css">
+</head>
+
+<body>
+    <div class="popup-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+                <span>Pixel Safe</span>
+            </div>
+        </div>
+
+        <!-- Not Logged In State -->
+        <div id="notLoggedIn" class="content-section" style="display: none;">
+            <div class="status-card">
+                <div class="icon-circle warning">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                </div>
+                <h3>Not Logged In</h3>
+                <p>Please login to start verifying images</p>
+                <button id="goToLoginBtn" class="btn btn-primary">
+                    Login to Extension
+                </button>
+            </div>
+        </div>
+
+        <!-- Logged In State -->
+        <div id="loggedIn" class="content-section" style="display: none;">
+            <!-- User Info -->
+            <div class="user-info">
+                <div class="user-avatar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                    </svg>
+                </div>
+                <div class="user-details">
+                    <div class="user-name" id="username">User</div>
+                    <div class="user-status">
+                        <span class="status-dot"></span>
+                        Active
+                    </div>
+                </div>
+                <button id="logoutBtn" class="icon-btn" title="Logout">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statVerified">0</div>
+                    <div class="stat-label">Verified</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statTampered">0</div>
+                    <div class="stat-label">Tampered</div>
+                </div>
+            </div>
+
+            <!-- Recent Verification -->
+            <div id="recentSection" style="display: none;">
+                <div class="section-title">Recent Verification</div>
+                <div class="recent-card" id="recentCard">
+                    <div class="recent-status">
+                        <span class="status-badge" id="recentStatus">Verified</span>
+                        <span class="recent-confidence" id="recentConfidence">98%</span>
+                    </div>
+                    <div class="recent-time" id="recentTime">Just now</div>
+                    <button id="viewResultBtn" class="btn btn-secondary btn-sm">View Details</button>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="instructions">
+                <div class="instruction-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4M12 8h.01" />
+                    </svg>
+                    How to Use
+                </div>
+                <ol class="instruction-list">
+                    <li>Visit Facebook, Instagram, Twitter, or other social media</li>
+                    <li>Find an image you want to verify</li>
+                    <li>Click the blue verify button on the image</li>
+                    <li>Wait for verification results (2-3 seconds)</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-links">
+                <a href="#" id="settingsLink">Settings</a>
+                <a href="#" id="helpLink">Help</a>
+            </div>
+            <div class="footer-version">v1.0.0</div>
+        </div>
+    </div>
+
+    <script src="../scripts/popup.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verification Result - Pixel Safe</title>
+    <link rel="stylesheet" href="../styles/result.css">
+</head>
+
+<body>
+    <div class="result-container">
+        <!-- Header -->
+        <div class="result-header">
+            <button id="backBtn" class="back-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                </svg>
+                Back
+            </button>
+            <h1>Verification Result</h1>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading-state">
+            <svg class="spinner-large" width="48" height="48" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" opacity="0.25" />
+                <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2" fill="none" />
+            </svg>
+            <p>Loading results...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="error-state" style="display: none;">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+            </svg>
+            <h2>No Results Available</h2>
+            <p>Please verify an image first by clicking the verify button on social media.</p>
+        </div>
+
+        <!-- Result Content -->
+        <div id="resultContent" class="result-content" style="display: none;">
+            <!-- Confidence Score -->
+            <div class="confidence-section">
+                <div class="confidence-circle">
+                    <svg class="confidence-progress" width="200" height="200" viewBox="0 0 200 200">
+                        <circle cx="100" cy="100" r="90" stroke="#1f2937" stroke-width="12" fill="none" />
+                        <circle id="confidenceCircle" cx="100" cy="100" r="90" stroke="url(#gradient)" stroke-width="12"
+                            fill="none" stroke-dasharray="565.48" stroke-dashoffset="565.48"
+                            transform="rotate(-90 100 100)" style="transition: stroke-dashoffset 1s ease" />
+                        <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#06b6d4" />
+                                <stop offset="100%" style="stop-color:#8b5cf6" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div class="confidence-value">
+                        <span id="confidenceValue" class="confidence-number">0</span>
+                        <span class="confidence-percent">%</span>
+                        <div id="confidenceLabel" class="confidence-label">Confidence</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Badge -->
+            <div class="status-section">
+                <div id="statusBadge" class="status-badge large">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+                    </svg>
+                    <span id="statusText">Verified</span>
+                </div>
+                <p id="statusMessage" class="status-message"></p>
+            </div>
+
+            <!-- Forensic Metrics -->
+            <div class="metrics-section">
+                <h3>Forensic Metrics</h3>
+                <div class="metrics-grid" id="metricsGrid">
+                    <!-- Metrics will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Watermark Detection Info -->
+            <div class="detection-info-section" id="detectionInfo" style="display: none;">
+                <h3>Watermark Detection</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Detection Status</span>
+                        <span id="detectionStatus" class="info-value">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Original File</span>
+                        <span id="originalFilename" class="info-value">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Detection Method</span>
+                        <span id="detectionMethod" class="info-value">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Detection Confidence</span>
+                        <span id="detectionConfidence" class="info-value">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Images Section -->
+            <div class="report-images-section" id="reportImages" style="display: none;">
+                <!-- Images will be inserted here by JavaScript -->
+            </div>
+
+            <!-- Image Info -->
+            <div class="image-info-section">
+                <h3>Image Information</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Platform</span>
+                        <span id="infoPlatform" class="info-value">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Verified</span>
+                        <span id="infoTime" class="info-value">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="actions-section">
+                <button id="downloadReportBtn" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Download Report
+                </button>
+                <button id="verifyAnotherBtn" class="btn btn-secondary">
+                    Verify Another Image
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../scripts/result.js"></script>
+</body>
+
+</html>
