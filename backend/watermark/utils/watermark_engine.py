@@ -41,55 +41,22 @@ class WatermarkEngine:
     
     def embed_with_id(self, image_array, secret_data, watermark_id):
         """
-        Embed watermark with ID included in the payload
+        Embed watermark directly (no JSON wrapper for simplicity)
         """
-        # Create structured payload
-        payload = {
-            'watermark_id': str(watermark_id),
-            'data': secret_data.hex() if isinstance(secret_data, bytes) else secret_data,
-            'version': '1.0'
-        }
-        
-        # Convert to bytes
-        payload_bytes = json.dumps(payload).encode('utf-8')
-        
-        # Embed the structured payload
-        return self.embed_watermark(image_array, payload_bytes)
+        # Just embed the encrypted data directly
+        # The watermark_id is stored in the database, not embedded
+        return self.embed_watermark(image_array, secret_data)
     
     def extract_with_id(self, image_array, num_bits):
         """
-        Extract watermark and try to parse structured payload
+        Extract watermark (raw bytes, no JSON parsing needed)
         """
         extracted_bits = self.extract_watermark(image_array, num_bits)
         extracted_bytes = self._bits_to_bytes(extracted_bits)
         
-        try:
-            # Try to parse as JSON
-            payload_str = extracted_bytes.decode('utf-8', errors='ignore').strip('\x00')
-            payload = json.loads(payload_str)
-            
-            if 'watermark_id' in payload and 'data' in payload:
-                # Convert hex string back to bytes if needed
-                data = payload['data']
-                if isinstance(data, str):
-                    try:
-                        data = bytes.fromhex(data)
-                    except:
-                        data = data.encode('latin-1')
-                
-                return {
-                    'success': True,
-                    'watermark_id': int(payload['watermark_id']),
-                    'data': data,
-                    'full_payload': payload
-                }
-        except:
-            pass
-        
-        # If structured parsing fails, return raw bytes
         return {
-            'success': False,
-            'raw_data': extracted_bytes
+            'success': True,
+            'data': extracted_bytes
         }
     
     def embed_watermark(self, image_array, secret_data):

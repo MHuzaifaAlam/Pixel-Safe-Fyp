@@ -170,13 +170,17 @@ def verify_watermark(request):
         if not verification_result['success']:
             return JsonResponse({'error': verification_result['error']}, status=500)
 
+        # Get source platform for platform-aware verification
+        source_platform = request.POST.get('source_platform') or request.data.get('source_platform')
+        
         # Determine status
         status, confidence, reason = VerificationLogic.determine_status(
             verification_result['hamming_distance'],
             verification_result['watermark_similarity'],
             verification_result['decryption_success'],
             verification_result['decrypted_hash'],
-            watermark_record.perceptual_hash
+            watermark_record.perceptual_hash,
+            source_platform=source_platform
         )
 
         # Update record
@@ -372,12 +376,17 @@ def auto_verify_watermark(request):
             return JsonResponse({'error': verification_result['error']}, status=500)
 
         # Determine status
+        # Get source platform for platform-aware verification
+        source_platform = request.POST.get('source_platform') or request.data.get('source_platform')
+        
+        # Determine status
         status, confidence, reason = VerificationLogic.determine_status(
             verification_result['hamming_distance'],
             verification_result['watermark_similarity'],
             verification_result['decryption_success'],
             verification_result['decrypted_hash'],
-            watermark_record.perceptual_hash
+            watermark_record.perceptual_hash,
+            source_platform=source_platform
         )
 
         # Update record

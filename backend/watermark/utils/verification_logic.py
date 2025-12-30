@@ -1,14 +1,30 @@
 class VerificationLogic:
     @staticmethod
-    def determine_status(hamming_distance, watermark_similarity, decryption_success, decrypted_hash, original_phash):
+    def determine_status(hamming_distance, watermark_similarity, decryption_success, decrypted_hash, original_phash, source_platform=None):
         """Determine verification status based on metrics"""
         
-        # RULE 0: If visual is perfect BUT watermark is weak = TAMPERED!
-        if hamming_distance == 0 and watermark_similarity < 0.7:
-            return "watermark_removed", "high", "CRITICAL: Image looks identical but watermark has been damaged/removed (AI attack detected)"
+        # Determine threshold based on source platform
+        # Social media platforms compress images, so we use a relaxed threshold
+        # Direct uploads should maintain strict security
+        if source_platform and source_platform not in ['unknown', '', None]:
+            # Extension from social media - relaxed threshold for compression tolerance
+            base_threshold = 0.58
+        else:
+            # Direct upload via webpage - strict threshold
+            base_threshold = 0.65
         
-        # RULE 1: Perfect match (BOTH visual AND watermark)
-        elif hamming_distance == 0 and watermark_similarity > 0.85:
+        # RULE 0: Perfect visual match - check watermark strength
+        # When hamming_distance is 0, the images are identical
+        # ~50% watermark similarity = random noise (NO watermark), need >threshold to confirm presence
+        if hamming_distance == 0:
+            if watermark_similarity >= base_threshold:  # Strong evidence of watermark
+                return "authentic", "very high", "Perfect visual match with watermark present"
+            else:
+                # Low watermark similarity = watermark missing/removed (could be original non-watermarked image)
+                return "watermark_removed", "high", "CRITICAL: Image looks identical but watermark is missing or damaged"
+        
+        # RULE 1: Strong match (BOTH visual AND watermark)
+        elif hamming_distance <= 3 and watermark_similarity > 0.85:
             return "authentic", "very high", "Perfect match with strong watermark"
         
         # RULE 2: Very similar with good watermark
