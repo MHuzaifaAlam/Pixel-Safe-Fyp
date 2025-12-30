@@ -37,6 +37,7 @@ const Navbar = () => {
     { path: "/history", label: "History", isPublic: false },
     { path: "/extension", label: "Extension", isPublic: false },
     { path: "/social-scanner", label: "Scanner", isPublic: false },
+    { path: "/admin", label: "Profile", isPublic: false }
   ];
 
   let items = navItems.filter((i) => i.isPublic || isAuthenticated);

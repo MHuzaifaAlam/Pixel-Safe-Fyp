@@ -1,24 +1,36 @@
-import { useState } from "react";
+import { useState} from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "./AuthContext";   // ✅ THIS IMPORT IS REQUIRED
+import { AuthContext } from "./AuthContext";
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  // 1. Initialize state from LocalStorage so refresh doesn't log the user out
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem("access_token"));
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem("user_data")));
   const navigate = useNavigate();
 
-  const login = (email) => {
+  const login = (userData) => {
+    // userData is the object { username: ..., token: ... } sent from LoginPage
     setIsAuthenticated(true);
-    setUser({
-      name: email.split("@")[0],
-      email,
+    
+    // Create a more robust user object
+    const userInfo = {
+      name: userData.username,
+      email: userData.email || `${userData.username}@example.com`,
       pic: "https://i.pravatar.cc/150?img=68",
-    });
+    };
 
-    navigate("/dashboard");
+    setUser(userInfo);
+    
+    // Save user info to localStorage so it persists on refresh
+    localStorage.setItem("user_data", JSON.stringify(userInfo));
   };
 
   const logout = () => {
+    // Clear everything from storage
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_data");
+    
     setIsAuthenticated(false);
     setUser(null);
     navigate("/login");
