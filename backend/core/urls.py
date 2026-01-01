@@ -25,7 +25,9 @@ urlpatterns = [
     path('api/', include('users.urls')),
     path('api/',include('imageapp.urls')),
     path('api/', include('watermark.urls')),
-    path('api/',include('reportapp.urls'))
+    path('api/',include('reportapp.urls')),
+    path('api/',include('detectionmodel.urls')),
+
 ]
 
 urlpatterns += static(settings.MEDIA_URL,document_root = settings.MEDIA_ROOT)

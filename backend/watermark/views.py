@@ -206,6 +206,13 @@ def verify_watermark(request):
             overlay_url, comparison_url, statistics
         )
 
+        # Include canonical image IDs so frontend can request/generate reports
+        try:
+            response_data['image_id'] = str(watermark_record.original_image.ImageID)
+            response_data['ImageID'] = str(watermark_record.original_image.ImageID)
+        except Exception:
+            pass
+
         # Continue to create/update Report and attach images/metrics
         # (existing logic below)
         # --- Create or update Report linking original image + suspicious image + overlay ---
@@ -418,6 +425,13 @@ def auto_verify_watermark(request):
         response_data = ResponseBuilder.build_auto_detection_response(
             detection_result, verification_response, overlay_url
         )
+
+        # Ensure returned payload contains the canonical image ID for convenience
+        try:
+            response_data['image_id'] = str(watermark_record.original_image.ImageID)
+            response_data['ImageID'] = str(watermark_record.original_image.ImageID)
+        except Exception:
+            pass
 
         # Create/update Report similar to verify flow
         try:

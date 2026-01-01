@@ -7,9 +7,7 @@ import { AuthProvider } from "./context/AuthProvider";
 import Home from './pages/Home'
 import ImageUploadPage from './pages/ImageUploadPage'
 import ResultsPage from './pages/ResultPage'
-import HistoryPage from './pages/HistoryPage'
 import BrowserExtensionPage from './pages/BrowserExtensionPage'
-import SocialMediaScannerPage from './pages/SocialMediaScannerPage'
 import LoginPage from './pages/LoginPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 
@@ -28,9 +26,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/upload" element={<ImageUploadPage />} />
             <Route path="/results" element={<ResultsPage />} />
-            <Route path="/history" element={<HistoryPage />} />
             <Route path="/extension" element={<BrowserExtensionPage />} />
-            <Route path="/social-scanner" element={<SocialMediaScannerPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
           </Routes>

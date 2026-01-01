@@ -8,9 +8,9 @@ import {
   RefreshCcw,
   Trash2,
   ExternalLink,
-  AlertCircle,
   Download,
-  X
+  X,
+  AlertCircle
 } from "lucide-react";
 import api from "../api";
 import toast, { Toaster } from "react-hot-toast";
@@ -24,6 +24,9 @@ const AdminDashboardPage = () => {
   // Modal States
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+
+  // Constants
+  const BACKEND_BASE = "http://127.0.0.1:8000";
 
   useEffect(() => {
     fetchUserData();
@@ -39,7 +42,7 @@ const AdminDashboardPage = () => {
       setImages(imgRes.data || []);
       setBatches(batchRes.data || []);
     } catch (err) {
-      console.error("Dashboard Sync Error:", err);
+      console.error("Dashboard Sync Error:", err.message);
       toast.error("Failed to sync history.");
     } finally {
       setLoading(false);
@@ -49,13 +52,14 @@ const AdminDashboardPage = () => {
   const handleOpenBatch = async (batchId) => {
     const load = toast.loading("Loading batch details...");
     try {
-      // ✅ Using BatchID as requested
       const res = await api.get(`batches/${batchId}/images/`);
-      setSelectedBatch(res.data);
+      // Adapt to either array response or object response
+      const data = Array.isArray(res.data) ? { images: res.data, name: "Batch Details" } : res.data;
+      setSelectedBatch(data);
       setIsBatchModalOpen(true);
       toast.dismiss(load);
     } catch (err) {
-      console.error("Batch Details Error:", err);
+      console.error("Batch Details Error:", err.message);
       toast.error("Could not load batch details", { id: load });
     }
   };
@@ -73,26 +77,31 @@ const AdminDashboardPage = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(link);
     } catch (err) {
-      toast.error("Download failed",err);
+      console.error("Download error:", err);
+      toast.error("Download failed");
     }
   };
 
   const handleDeleteImage = async (id) => {
     if (!window.confirm("Delete this image permanently?")) return;
+    const load = toast.loading("Deleting...");
     try {
       await api.delete(`images/${id}/`);
+      
+      // Update main dashboard list
       setImages(prev => prev.filter(img => img.ImageID !== id));
       
-      // Update modal images if user deletes while popup is open
+      // Update modal list if it's open
       if (selectedBatch) {
         setSelectedBatch(prev => ({
           ...prev,
           images: prev.images.filter(img => img.ImageID !== id)
         }));
       }
-      toast.success("Image deleted");
+      toast.success("Image deleted", { id: load });
     } catch (err) {
-      toast.error("Delete failed",err);
+      console.error("Delete Error:", err.message);
+      toast.error("Delete failed", { id: load });
     }
   };
 
@@ -102,6 +111,13 @@ const AdminDashboardPage = () => {
     { label: "Processed", value: images.filter(i => i.Status === 'Completed').length, icon: CheckCircle, color: "text-green-400" },
   ];
 
+  // Helper to ensure image URLs are absolute
+  const getImageUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith('http')) return url;
+    return `${BACKEND_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   return (
     <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen pt-24 pb-12 bg-[#050505] text-white px-4 md:px-8">
       <Toaster />
@@ -109,7 +125,7 @@ const AdminDashboardPage = () => {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent">My Workspace</h1>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent">My Dashboard</h1>
             <p className="text-gray-400 mt-1 text-sm">Forensic history and batch management.</p>
           </div>
           <div className="flex gap-3">
@@ -137,7 +153,7 @@ const AdminDashboardPage = () => {
             <div className="bg-[#0f0f1a] border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                  <thead className="bg-[#141420] text-gray-500 text-xs font-bold uppercase tracking-tighter">
+                  <thead className="bg-[#141420] text-gray-500 text-xs font-bold uppercase tracking-widest">
                     <tr>
                       <th className="px-6 py-4">Image</th>
                       <th className="px-6 py-4 text-center">Action</th>
@@ -147,36 +163,49 @@ const AdminDashboardPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
-                    {!loading && images.slice(0, 8).map((img) => (
-                      <tr key={img.ImageID} className="group hover:bg-[#1a1a2e] transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <img src={img.image} className="h-10 w-10 rounded object-cover border border-gray-700" alt="" />
-                            <div className="text-sm font-medium truncate max-w-[120px] text-gray-200">{img.fileName}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                           <span className="text-[10px] font-bold uppercase px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-300">
-                             {img.metadata?.action_mode === 'watermark' ? 'Protected' : 'Analysis'}
-                           </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          <div className={`flex items-center gap-1.5 ${img.Status === 'Completed' ? 'text-green-400' : 'text-yellow-500'}`}>
-                             {img.Status === 'Completed' ? <CheckCircle size={14} /> : <Clock size={14} />}
-                             <span className="capitalize">{img.Status}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 font-mono text-xs text-cyan-400">
-                          {img.Status === 'Completed' ? (img.metadata?.detection_result || "Success") : <span className="text-gray-500 italic">Processing...</span>}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleDownload(img.image, img.fileName)} className="p-1.5 text-gray-400 hover:text-cyan-400"><Download size={16} /></button>
-                            <button onClick={() => handleDeleteImage(img.ImageID)} className="p-1.5 text-gray-400 hover:text-red-500"><Trash2 size={16} /></button>
-                          </div>
+                    {loading ? (
+                      <tr>
+                        <td colSpan="5" className="p-20 text-center text-gray-500">
+                          <RefreshCcw className="animate-spin mx-auto mb-2 text-cyan-400" />
+                          Fetching workspace data...
                         </td>
                       </tr>
-                    ))}
+                    ) : images.length > 0 ? (
+                      images.map((img) => (
+                        <tr key={img.ImageID} className="group hover:bg-[#1a1a2e] transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <img src={getImageUrl(img.image)} className="h-10 w-10 rounded object-cover border border-gray-700" alt="" />
+                              <div className="text-sm font-medium truncate max-w-[120px] text-gray-200">{img.fileName}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                             <span className="text-[10px] font-bold uppercase px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-300">
+                               {img.metadata?.action_mode === 'watermark' ? 'Protected' : 'Analysis'}
+                             </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <div className={`flex items-center gap-1.5 ${img.Status === 'Completed' ? 'text-green-400' : 'text-yellow-500'}`}>
+                               {img.Status === 'Completed' ? <CheckCircle size={14} /> : <Clock size={14} />}
+                               <span className="capitalize">{img.Status}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-mono text-xs text-cyan-400">
+                            {img.Status === 'Completed' ? (img.metadata?.detection_result || "Success") : "Processing..."}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => handleDownload(getImageUrl(img.image), img.fileName)} className="p-1.5 text-gray-400 hover:text-cyan-400 transition-colors"><Download size={16} /></button>
+                              <button onClick={() => handleDeleteImage(img.ImageID)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="px-6 py-10 text-center text-gray-500">No activity found.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -187,7 +216,7 @@ const AdminDashboardPage = () => {
           <div className="space-y-6">
             <h3 className="text-xl font-semibold flex items-center gap-2"><Layers size={20} className="text-violet-400" /> My Batches</h3>
             <div className="space-y-4">
-              {batches.map((batch) => (
+              {batches.length > 0 ? batches.map((batch) => (
                 <div 
                   key={batch.BatchID} 
                   onClick={() => handleOpenBatch(batch.BatchID)}
@@ -198,11 +227,11 @@ const AdminDashboardPage = () => {
                       <ExternalLink size={14} className="text-gray-500" />
                    </div>
                    <div className="flex justify-between items-center text-[10px] text-gray-500 font-bold uppercase">
-                      <span>{batch.image_count} Images</span>
-                      <span>{new Date(batch.created_at).toLocaleDateString()}</span>
+                     <span>{batch.image_count} Images</span>
+                     <span>{new Date(batch.created_at).toLocaleDateString()}</span>
                    </div>
                 </div>
-              ))}
+              )) : <p className="text-gray-500 text-sm">No batches created.</p>}
             </div>
           </div>
         </div>
@@ -213,54 +242,71 @@ const AdminDashboardPage = () => {
         {isBatchModalOpen && selectedBatch && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsBatchModalOpen(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
-            <Motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative w-full max-w-4xl bg-[#0f0f1a] border border-gray-800 rounded-3xl shadow-2xl overflow-hidden">
+            <Motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="relative w-full max-w-4xl bg-[#0f0f1a] border border-gray-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
               <div className="p-6 border-b border-gray-800 flex justify-between items-center bg-[#141420]">
                 <div>
-                  <h2 className="text-xl font-bold">{selectedBatch.batch_name}</h2>
-                  <p className="text-xs text-gray-500 uppercase tracking-tighter">Images in Batch: {selectedBatch.total_images}</p>
+                  <h2 className="text-xl font-bold">{selectedBatch.name || selectedBatch.batch_name || "Batch Contents"}</h2>
+                  <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">Total Assets: {selectedBatch.images?.length || 0}</p>
                 </div>
-                <button onClick={() => setIsBatchModalOpen(false)} className="p-2 hover:bg-gray-800 rounded-full"><X size={20} /></button>
+                <button onClick={() => setIsBatchModalOpen(false)} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><X size={24} /></button>
               </div>
+              
               <div className="max-h-[60vh] overflow-y-auto p-4">
                 <table className="w-full text-left">
-                  <thead className="text-gray-500 text-[10px] font-bold uppercase tracking-widest border-b border-gray-800">
+                  <thead className="text-gray-500 text-[10px] font-bold uppercase tracking-widest border-b border-gray-800 sticky top-0 bg-[#0f0f1a] z-10">
                     <tr>
-                      <th className="px-4 py-3">Image</th>
-                      <th className="px-4 py-3 text-center">Action</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Result</th>
-                      <th className="px-4 py-3 text-right">Tools</th>
+                      <th className="px-6 py-4">Image</th>
+                      <th className="px-6 py-4 text-center">Action</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Result</th>
+                      <th className="px-6 py-4 text-right">Tools</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800">
-                    {selectedBatch.images.map((img) => (
+                    {selectedBatch.images && selectedBatch.images.length > 0 ? selectedBatch.images.map((img) => (
                       <tr key={img.ImageID} className="hover:bg-white/5 transition-colors">
-                        <td className="px-4 py-4 flex items-center gap-3">
-                            <img src={img.image} className="h-8 w-8 rounded object-cover border border-gray-700" alt="" />
-                            <p className="text-xs font-medium text-gray-300 truncate max-w-[120px]">{img.fileName}</p>
+                        <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                                <img 
+                                    src={getImageUrl(img.image)} 
+                                    className="h-10 w-10 rounded object-cover border border-gray-700" 
+                                    alt="Forensic Asset" 
+                                    onError={(e) => {
+                                        e.target.src = "https://via.placeholder.com/40?text=Err";
+                                    }}
+                                />
+                                <p className="text-sm text-gray-300 truncate max-w-[150px]">{img.fileName}</p>
+                            </div>
                         </td>
-                        <td className="px-4 py-4 text-center">
+                        <td className="px-6 py-4 text-center">
                            <span className="text-[9px] font-bold uppercase px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-400">
                              {img.metadata?.action_mode === 'watermark' ? 'Protected' : 'Analysis'}
                            </span>
                         </td>
-                        <td className="px-4 py-4 text-[11px]">
+                        <td className="px-6 py-4 text-sm">
                           <div className={`flex items-center gap-1.5 ${img.Status === 'Completed' ? 'text-green-400' : 'text-yellow-500'}`}>
-                             {img.Status === 'Completed' ? <CheckCircle size={12} /> : <Clock size={12} />}
+                             {img.Status === 'Completed' ? <CheckCircle size={14} /> : <Clock size={14} />}
                              <span className="capitalize">{img.Status}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-4 font-mono text-[10px] text-cyan-400">
+                        <td className="px-6 py-4 font-mono text-xs text-cyan-400">
                           {img.Status === 'Completed' ? (img.metadata?.detection_result || "Success") : "Processing..."}
                         </td>
-                        <td className="px-4 py-4 text-right">
+                        <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2">
-                            <button onClick={() => handleDownload(img.image, img.fileName)} className="p-1 text-gray-400 hover:text-cyan-400"><Download size={14} /></button>
-                            <button onClick={() => handleDeleteImage(img.ImageID)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={14} /></button>
+                            <button onClick={() => handleDownload(getImageUrl(img.image), img.fileName)} className="p-1 text-gray-400 hover:text-cyan-400 transition-colors"><Download size={14} /></button>
+                            <button onClick={() => handleDeleteImage(img.ImageID)} className="p-1 text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )) : (
+                      <tr>
+                        <td colSpan="5" className="px-6 py-10 text-center text-gray-500">
+                           <AlertCircle className="mx-auto mb-2 opacity-20" size={32} />
+                           <p>No images in this batch.</p>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

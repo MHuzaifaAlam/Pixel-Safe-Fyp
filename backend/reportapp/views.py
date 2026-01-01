@@ -55,8 +55,13 @@ class ReportViewSet(viewsets.ModelViewSet):
 
         if existing_report and not force:
             # Regenerate PDF using existing report data (preserves heatmap/suspicious images)
-            report = self._create_report_from_record(existing_report, request)
-            return self._return_pdf_response(report, request, "regenerated")
+            try:
+                report = self._create_report_from_record(existing_report, request)
+                return self._return_pdf_response(report, request, "regenerated")
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return Response({"detail": "PDF regeneration failed: " + str(e)}, status=500)
 
         if existing_report and force:
             try:
@@ -87,8 +92,13 @@ class ReportViewSet(viewsets.ModelViewSet):
                 pass
 
         # No existing report or force was requested: create a fresh report
-        report = self._create_single_report(image, request)
-        return self._return_pdf_response(report, request, "new")
+        try:
+            report = self._create_single_report(image, request)
+            return self._return_pdf_response(report, request, "new")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"detail": "PDF generation failed: " + str(e)}, status=500)
 
     def _create_report_from_record(self, report, request=None):
         """Generate PDF for an existing Report record and save the PDF file"""

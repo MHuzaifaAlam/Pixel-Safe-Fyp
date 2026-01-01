@@ -47,8 +47,22 @@ class BatchViewSet(viewsets.ModelViewSet):
                 batches.order_by('-created_at')[:5], 
                 many=True
             ).data
-        })
 
+        
+        })
+    @action(detail=True, methods=['get'])
+    def images(self, request, pk=None):
+        batch = self.get_object()
+        images = batch.images.all()
+        
+        # ✅ CRITICAL: Pass context={'request': request} 
+        # This tells the serializer to generate FULL URLs (http://...)
+        serializer = ImageSerializer(images, many=True, context={'request': request})
+        
+        return Response({
+            'batch_name': batch.name,
+            'images': serializer.data
+        })
 # ============ IMAGE VIEWSET ============
 class UserImageView(viewsets.ModelViewSet):
     serializer_class = ImageSerializer

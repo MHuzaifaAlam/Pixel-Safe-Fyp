@@ -25,49 +25,57 @@ const LoginPage = () => {
     }));
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  const loadingToast = toast.loading(isSignUp ? "Creating account..." : "Signing in...");
+const handleSubmit = async (e) => {
+    e.preventDefault();
+    const loadingToast = toast.loading(isSignUp ? "Creating account..." : "Signing in...");
 
-  try {
-    if (!isSignUp) {
-      // --- LOGIN FLOW ---
-      // Only send username and password to the /token/ endpoint
-      const response = await api.post("token/", {
-        username: formData.username,
-        password: formData.password,
-      });
+    try {
+      if (!isSignUp) {
+        // --- LOGIN FLOW ---
+        const response = await api.post("token/", {
+          username: formData.username,
+          password: formData.password,
+        });
 
-      const { access, refresh } = response.data;
+        const { access, refresh } = response.data;
 
-      localStorage.setItem("access_token", access);
-      localStorage.setItem("refresh_token", refresh);
+        localStorage.setItem("access_token", access);
+        localStorage.setItem("refresh_token", refresh);
 
-      login({ username: formData.username, token: access });
+        // ✅ We pass the data to the context login function
+        login({ username: formData.username, token: access });
+        
+        toast.success("Welcome back!", { id: loadingToast });
+        navigate("/admin"); // Changed to /upload as it's your primary dashboard
+      } else {
+        // --- SIGNUP FLOW ---
+        const signupData = {
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+        };
+
+        await api.post("signup/", signupData);
+        
+        toast.success("Account created! Please sign in.", { id: loadingToast });
+        setIsSignUp(false);
+        setFormData(prev => ({ ...prev, password: "" }));
+      }
+    } catch (err) {
+      // ✅ THE FIX: Extract the string message from the error object
+      // Django/SimpleJWT usually returns errors in err.response.data.detail
+      const errorMsg = err.response?.data?.detail || 
+                       err.response?.data?.message || 
+                       "Invalid username or password. Please try again.";
+
+      // ✅ Display only the string to prevent the white screen crash
+      toast.error(String(errorMsg), { id: loadingToast });
       
-      toast.success("Welcome back!", { id: loadingToast });
-      navigate("/admin");
-    } else {
-      // --- SIGNUP FLOW (Signup stays the same) ---
-      const signupData = {
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-      };
-
-      await api.post("signup/", signupData);
-      
-      toast.success("Account created! Please sign in.", { id: loadingToast });
-      setIsSignUp(false);
-      setFormData(prev => ({ ...prev, password: "" }));
+      console.error("Auth Error:", err);
     }
-  } catch (err) {
-    alert({err}`An error occurred. Please try again.`);
-    // ... error handling logic
-  }
-};
+  };
 
   const handleGoogleLogin = () => {
     toast.error("Google Login is not configured yet.");
@@ -135,22 +143,6 @@ const LoginPage = () => {
               </div>
             </div>
           )}
-
-          <div>
-            <label className="text-sm font-medium">Email Address</label>
-            <div className="flex items-center bg-[#141420] border border-gray-700 rounded-lg px-3 py-2 mt-1">
-              <Mail size={18} className="text-gray-400 mr-2" />
-              <input
-                type="email"
-                name="email"
-                placeholder="Enter email"
-                className="w-full bg-transparent outline-none text-sm"
-                value={formData.email}
-                onChange={handleChange}
-                required={isSignUp}
-              />
-            </div>
-          </div>
 
           <div>
             <label className="text-sm font-medium">Password</label>

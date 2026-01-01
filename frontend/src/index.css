@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+/* Optional: Smooth transitions for your modals */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: #050505;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
