@@ -18,16 +18,19 @@ const ImageUploadPage = () => {
 
   const BACKEND_URL = "http://127.0.0.1:8000";
 
+  // ✅ 1. Forensic PDF Download
   const downloadSingleReport = async (imageID) => {
     if (!imageID) return toast.error("Report reference missing. Ensure image is processed.");
     const load = toast.loading("Generating Forensic PDF...");
     try {
       const response = await api.post("reports/generate/", { image_id: imageID, force: true }, { responseType: 'blob' });
+      
       if (response.data.type === "application/json") {
         const text = await response.data.text();
         const err = JSON.parse(text);
         throw new Error(err.detail || "Server logic failed");
       }
+
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
@@ -52,7 +55,7 @@ const ImageUploadPage = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Archive_${Date.now()}.zip`);
+      link.setAttribute('download', `Forensic_Batch_${Date.now()}.zip`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -94,10 +97,15 @@ const ImageUploadPage = () => {
     try {
       const { images } = await uploadFilesToBackend("watermark");
       await Promise.all(images.map((img) => api.post("watermark/apply/", { image_id: img.ImageID })));
-      setFiles((prev) => prev.map((f, i) => ({ ...f, db_id: images[i]?.ImageID, status: "completed", result: "Protected" })));
+      setFiles((prev) => prev.map((f, i) => ({ 
+        ...f, 
+        db_id: images[i]?.ImageID, 
+        status: "completed", 
+        result: "Protected" 
+      })));
       toast.success("Seal applied successfully!", { id: load });
     } catch (error) {
-      toast.error("Sealing failed", { id: load },error);
+      toast.error("Sealing failed", { id: load }, error);
     }
   };
 
@@ -106,14 +114,29 @@ const ImageUploadPage = () => {
     const load = toast.loading("Executing AI Artifact Scan...");
     try {
       const { images, batch_id } = await uploadFilesToBackend(mode);
-      const responses = await Promise.all(images.map((img) => api.post("scan/", { image_id: img.ImageID, scan_mode: mode })));
-      const formatted = responses.map(res => ({ ImageID: res.data.ImageID || res.data.image_id, file_name: res.data.file_name, score: res.data.score, verdict: res.data.verdict }));
-      setFiles((prev) => prev.map((f, i) => ({ ...f, db_id: images[i]?.ImageID, db_batch_id: batch_id, status: "completed", result: formatted[i]?.verdict || "Analyzed" })));
-      setScanResults(formatted);
+      const scanPromises = images.map((img) => api.post("scan/", { image_id: img.ImageID, scan_mode: mode }));
+      const responses = await Promise.all(scanPromises);
+
+      const formattedResults = responses.map(res => ({
+        ImageID: res.data.ImageID || res.data.image_id, 
+        file_name: res.data.file_name,
+        score: res.data.score,
+        verdict: res.data.verdict,
+      }));
+
+      setFiles((prev) => prev.map((f, i) => ({ 
+        ...f, 
+        db_id: images[i]?.ImageID, 
+        db_batch_id: batch_id,
+        status: "completed", 
+        result: formattedResults[i]?.verdict || "Analyzed" 
+      })));
+
+      setScanResults(formattedResults);
       setShowResultPopup(true);
       toast.success("Scan Complete", { id: load });
     } catch (error) {
-      toast.error("Analysis failed", { id: load },error);
+      toast.error("Analysis failed", { id: load }, error);
     }
   };
 
@@ -176,22 +199,22 @@ const ImageUploadPage = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    {file.db_id && <button onClick={() => downloadSingleReport(file.db_id)} className="text-cyan-400 hover:text-white"><FileText size={18} /></button>}
-                    <button onClick={() => handleRemoveFile(file.id)} className="text-gray-600 hover:text-red-500"><XCircle size={20} /></button>
+                    {file.db_id && <button onClick={() => downloadSingleReport(file.db_id)} className="p-2 text-cyan-400 hover:bg-cyan-400/10 rounded-lg"><FileText size={18} /></button>}
+                    <button onClick={() => handleRemoveFile(file.id)} className="text-gray-600 hover:text-red-500 transition-colors"><XCircle size={20} /></button>
                   </div>
                 </div>
               ))}
               <div className="flex flex-wrap justify-center gap-4 mt-10">
                 <button onClick={() => setShowAnalysisModal(true)} className="px-8 py-3 bg-gray-800 border border-gray-700 rounded-xl font-bold hover:border-cyan-400 transition-all">Analyze AI</button>
                 <button onClick={() => setShowWatermarkModal(true)} className="px-8 py-3 bg-linear-to-r from-cyan-500 to-blue-600 rounded-xl font-bold shadow-lg">Protect</button>
-                {files.some(f => f.db_batch_id) && <button onClick={handleDownloadBatch} className="px-8 py-3 bg-violet-600/20 border border-violet-500/30 rounded-xl font-bold flex items-center gap-2"><Download size={18} /> ZIP</button>}
+                {files.some(f => f.db_batch_id) && <button onClick={handleDownloadBatch} className="px-8 py-3 bg-violet-600/20 border border-violet-500/30 rounded-xl font-bold flex items-center gap-2"><Download size={18} /> Download All</button>}
               </div>
             </div>
           )}
         </Motion.div>
       </div>
 
-      {/* Popups */}
+      {/* --- INTEGRITY REPORT (WATERMARK) POPUP --- */}
       <AnimatePresence>
         {showVerifyPopup && verificationData && (
           <div className="fixed inset-0 z-110 flex items-center justify-center p-4">
@@ -201,20 +224,26 @@ const ImageUploadPage = () => {
                 <h2 className="text-xl font-bold uppercase tracking-tighter flex items-center gap-2"><Fingerprint className="text-cyan-400" /> Integrity Report</h2>
                 <button onClick={() => setShowVerifyPopup(false)} className="p-2 hover:bg-gray-800 rounded-full"><X size={20}/></button>
               </div>
-              <div className="rounded-xl border border-gray-800 overflow-hidden bg-black text-center mb-6">
-                 {verificationData.comparison_image && <img src={`${BACKEND_URL}${verificationData.comparison_image}`} className="w-full h-auto max-h-[400px] object-contain" alt="Heatmap" />}
+              <div className="rounded-xl border border-gray-800 overflow-hidden bg-black text-center mb-6 min-h-[300px] flex items-center justify-center">
+                 {verificationData.comparison_image ? (
+                   <img src={`${BACKEND_URL}${verificationData.comparison_image}`} className="w-full h-auto max-h-[400px] object-contain" alt="Forensic Heatmap" />
+                 ) : (
+                   <div className="text-gray-600 uppercase text-xs tracking-widest flex flex-col items-center gap-2">
+                     <ImageIcon size={40} className="opacity-20" /> Heatmap Unavailable
+                   </div>
+                 )}
               </div>
               <div className="grid grid-cols-3 gap-4">
                  <div className="p-4 bg-gray-900 rounded-xl border border-gray-800 text-center">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">Status</p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Status</p>
                     <p className={`text-xl font-black ${verificationData.status === 'Verified' ? 'text-green-400' : 'text-red-500'}`}>{verificationData.status}</p>
                  </div>
                  <div className="p-4 bg-gray-900 rounded-xl border border-gray-800 text-center">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">Correlation</p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Correlation</p>
                     <p className="text-xl font-black text-cyan-400">{(parseFloat(verificationData.correlation_score || 0) * 100).toFixed(2)}%</p>
                  </div>
                  <div className="p-4 bg-gray-900 rounded-xl border border-gray-800 text-center flex flex-col justify-center">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">Seal</p>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Security</p>
                     <p className="text-md font-black text-violet-400 tracking-tighter">AES-256</p>
                  </div>
               </div>
@@ -223,30 +252,37 @@ const ImageUploadPage = () => {
         )}
       </AnimatePresence>
 
+      {/* --- AI SCAN RESULTS POPUP (WITH PREVIEWS) --- */}
       <AnimatePresence>
         {showResultPopup && scanResults && (
           <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
             <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowResultPopup(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" />
             <Motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 50, opacity: 0 }} className="relative w-full max-w-2xl bg-[#0f0f1a] border border-gray-800 rounded-3xl shadow-2xl overflow-hidden p-8">
-              <div className="flex justify-between items-center mb-6">
+               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-black italic tracking-tighter uppercase flex items-center gap-2"><FileText className="text-cyan-400" /> Scan Results</h2>
                 <button onClick={() => setShowResultPopup(false)} className="p-2 hover:text-red-500"><X size={20}/></button>
               </div>
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                {scanResults.map((res, idx) => (
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                {scanResults.map((res, idx) => {
+                  const localFile = files.find(f => f.db_id === res.ImageID);
+                  return (
                     <div key={idx} className="flex gap-4 p-4 bg-gray-900/50 border border-gray-800 rounded-2xl items-center">
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-black shrink-0 border border-gray-800">
+                        {localFile ? <img src={localFile.preview} className="w-full h-full object-cover" alt="Thumb" /> : <ImageIcon className="m-auto opacity-20" />}
+                      </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex justify-between mb-2">
+                        <div className="flex justify-between mb-1">
                           <h3 className="text-sm font-bold truncate pr-4">{res.file_name}</h3>
                           <span className="text-xl font-black text-cyan-400">{res.score}%</span>
                         </div>
-                        <div className={`px-4 py-1 inline-block rounded-full text-[10px] font-black uppercase ${res.verdict.includes("HIGH") ? "bg-red-500/10 text-red-500" : "bg-green-500/10 text-green-400"}`}>
+                        <div className={`px-4 py-1 inline-block rounded-full text-[10px] font-black uppercase ${res.verdict.toLowerCase().includes("fake") || res.verdict.toLowerCase().includes("high") ? "bg-red-500/10 text-red-500" : "bg-green-500/10 text-green-400"}`}>
                            {res.verdict}
                         </div>
                       </div>
-                      {res.ImageID && <button onClick={() => downloadSingleReport(res.ImageID)} className="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg hover:bg-cyan-500/20"><Download size={18} /></button>}
+                      {res.ImageID && <button onClick={() => downloadSingleReport(res.ImageID)} className="p-3 bg-cyan-500/10 text-cyan-400 rounded-xl hover:bg-cyan-500/20"><Download size={18} /></button>}
                     </div>
-                ))}
+                  );
+                })}
               </div>
             </Motion.div>
           </div>
@@ -262,17 +298,17 @@ const ImageUploadPage = () => {
               <div className="space-y-4">
                 {showAnalysisModal ? (
                   <button onClick={() => handleMLAnalysis("gan")} className="w-full flex items-center gap-4 p-5 bg-gray-900 border border-gray-800 rounded-2xl hover:border-violet-500 transition-all group text-left">
-                    <div className="p-3 bg-violet-500/10 rounded-xl"><Zap className="text-violet-400" /></div>
+                    <div className="p-3 bg-violet-500/10 rounded-xl group-hover:bg-violet-500/20"><Zap className="text-violet-400" /></div>
                     <div><p className="font-bold uppercase tracking-tight">Run Scan</p><p className="text-xs text-gray-500">Deep pixel artifacts check</p></div>
                   </button>
                 ) : (
                   <>
                     <button onClick={handleApplyWatermark} className="w-full flex items-center gap-4 p-5 bg-gray-900 border border-gray-800 rounded-2xl hover:border-green-500 transition-all group text-left">
-                      <div className="p-3 bg-green-500/10 rounded-xl"><ShieldCheck className="text-green-400" /></div>
+                      <div className="p-3 bg-green-500/10 rounded-xl group-hover:bg-green-500/20"><ShieldCheck className="text-green-400" /></div>
                       <div><p className="font-bold uppercase tracking-tight">Apply Seal</p><p className="text-xs text-gray-500">Inject invisible hash</p></div>
                     </button>
                     <button onClick={handleVerifyWatermark} className="w-full flex items-center gap-4 p-5 bg-gray-900 border border-gray-800 rounded-2xl hover:border-cyan-500 transition-all group text-left">
-                      <div className="p-3 bg-cyan-500/10 rounded-xl"><Search className="text-cyan-400" /></div>
+                      <div className="p-3 bg-cyan-500/10 rounded-xl group-hover:bg-cyan-500/20"><Search className="text-cyan-400" /></div>
                       <div><p className="font-bold uppercase tracking-tight">Verify</p><p className="text-xs text-gray-500">Scan for tamper seals</p></div>
                     </button>
                   </>
