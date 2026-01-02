@@ -402,7 +402,7 @@ def auto_verify_watermark(request):
         watermark_record.save()
 
         # Create visual overlay (optional)
-        overlay_url, _, statistics = _create_visual_overlay(
+        overlay_url, comparison_url, statistics = _create_visual_overlay(
             watermark_record.watermarked_image.path,
             suspicious_array
         )
@@ -423,7 +423,7 @@ def auto_verify_watermark(request):
 
         # Build auto-detection response
         response_data = ResponseBuilder.build_auto_detection_response(
-            detection_result, verification_response, overlay_url
+            detection_result, verification_response, overlay_url, comparison_url
         )
 
         # Ensure returned payload contains the canonical image ID for convenience
@@ -491,7 +491,8 @@ def auto_verify_watermark(request):
                 'hamming_distance': verification_response.get('metrics', {}).get('visual', {}).get('hamming_distance'),
                 'watermark_similarity': verification_response.get('metrics', {}).get('watermark', {}).get('similarity'),
                 'visual_statistics': verification_response.get('statistics', {}),
-                'overlay_url': overlay_url
+                'overlay_url': overlay_url,
+                'comparison_url': comparison_url
             }
             report.verification_status = verification_response.get('verification', {}).get('status', '')
             report.watermark_record = watermark_record
@@ -507,6 +508,9 @@ def auto_verify_watermark(request):
                     response_data['suspicious_image_url'] = report.suspicious_image.url
                 if report.heatmap_image:
                     response_data['heatmap_image_url'] = report.heatmap_image.url
+                # Surface comparison image URL for frontend pop-up convenience
+                if comparison_url:
+                    response_data['comparison_url'] = comparison_url
         except Exception:
             pass
 

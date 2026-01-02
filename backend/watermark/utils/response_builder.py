@@ -54,7 +54,7 @@ class ResponseBuilder:
         return response
     
     @staticmethod
-    def build_auto_detection_response(detection_result, verification_result, overlay_url=None):
+    def build_auto_detection_response(detection_result, verification_result, overlay_url=None, comparison_url=None):
         """Build response for auto_verify_watermark"""
         response = {
             'auto_detection': {
@@ -70,9 +70,10 @@ class ResponseBuilder:
             'hashes': verification_result['hashes']
         }
         
-        if overlay_url:
+        if overlay_url or comparison_url:
             response['visual_analysis'] = {
                 'tampering_overlay': overlay_url,
+                'comparison_url': comparison_url if comparison_url else '',
                 'statistics': verification_result.get('statistics', {})
             }
         

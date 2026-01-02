@@ -18,28 +18,38 @@ const ImageUploadPage = () => {
 
   const BACKEND_URL = "http://127.0.0.1:8000";
 
+  const resolveUrl = (u) => {
+    if (!u) return "";
+    return u.startsWith("http") ? u : `${BACKEND_URL}${u}`;
+  };
+
   // ✅ 1. Forensic PDF Download
   const downloadSingleReport = async (imageID) => {
     if (!imageID) return toast.error("Report reference missing. Ensure image is processed.");
     const load = toast.loading("Generating Forensic PDF...");
     try {
-      const response = await api.post("reports/generate/", { image_id: imageID, force: true }, { responseType: 'blob' });
-      
-      if (response.data.type === "application/json") {
+      const response = await api.post("reports/generate/", { image_id: imageID }, { responseType: 'blob' });
+      const ctype = response.headers['content-type'] || '';
+      const isPdf = ctype.includes('application/pdf');
+      if (!isPdf) {
         const text = await response.data.text();
-        const err = JSON.parse(text);
-        throw new Error(err.detail || "Server logic failed");
+        try {
+          const err = JSON.parse(text);
+          throw new Error(err.detail || err.error || "Server logic failed");
+        } catch (e) {
+          throw new Error(text || "Unexpected response while generating PDF");
+        }
       }
 
-      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Forensic_Report_${String(imageID).substring(0, 8)}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("PDF Downloaded", { id: load });
+      const blob = new Blob([response.data], { type: ctype || 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const tab = window.open(url, '_blank', 'noopener');
+      if (!tab) {
+        toast.error("Popup blocked. Allow popups for PDF preview.", { id: load });
+      } else {
+        toast.success("PDF opened", { id: load });
+      }
+      // Keep the object URL alive so the browser's PDF viewer can download/save
     } catch (error) {
       console.error("PDF Error:", error);
       toast.error(error.message || "PDF generation failed.", { id: load });
@@ -148,7 +158,21 @@ const ImageUploadPage = () => {
       fd.append("image", files[0].file);
       const res = await api.post("watermark/auto-verify/", fd);
       const serverID = res.data.ImageID || res.data.image_id;
-      setVerificationData({ status: res.data.status, image_id: serverID, comparison_image: res.data.comparison_url, correlation_score: res.data.statistics?.correlation_score || 0 });
+      const comparisonUrl = res.data.comparison_url
+        || res.data.visual_analysis?.comparison_url
+        || res.data.visual_analysis?.tampering_overlay
+        || "";
+      const stats = res.data.statistics || res.data.visual_analysis?.statistics || {};
+      const statusLabel = res.data.verification?.status
+        || res.data.status
+        || res.data.verdict
+        || "Unknown";
+      setVerificationData({
+        status: statusLabel,
+        image_id: serverID,
+        comparison_image: comparisonUrl,
+        correlation_score: stats.correlation_score || 0
+      });
       setShowVerifyPopup(true);
       setFiles((prev) => prev.map((f) => ({ ...f, db_id: serverID, status: "completed", result: res.data.status })));
       toast.success("Verification Complete", { id: load });
@@ -216,7 +240,7 @@ const ImageUploadPage = () => {
 
       {/* --- INTEGRITY REPORT (WATERMARK) POPUP --- */}
       <AnimatePresence>
-        {showVerifyPopup && verificationData && (
+        {showVerifyPopup && verificationData && verificationData.comparison_image && (
           <div className="fixed inset-0 z-110 flex items-center justify-center p-4">
             <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowVerifyPopup(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" />
             <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-4xl bg-[#0f0f1a] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden p-8">
@@ -226,27 +250,25 @@ const ImageUploadPage = () => {
               </div>
               <div className="rounded-xl border border-gray-800 overflow-hidden bg-black text-center mb-6 min-h-[300px] flex items-center justify-center">
                  {verificationData.comparison_image ? (
-                   <img src={`${BACKEND_URL}${verificationData.comparison_image}`} className="w-full h-auto max-h-[400px] object-contain" alt="Forensic Heatmap" />
+                   <img src={resolveUrl(verificationData.comparison_image)} className="w-full h-auto max-h-[400px] object-contain" alt="Forensic Heatmap" />
                  ) : (
                    <div className="text-gray-600 uppercase text-xs tracking-widest flex flex-col items-center gap-2">
                      <ImageIcon size={40} className="opacity-20" /> Heatmap Unavailable
                    </div>
                  )}
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                 <div className="p-4 bg-gray-900 rounded-xl border border-gray-800 text-center">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Status</p>
-                    <p className={`text-xl font-black ${verificationData.status === 'Verified' ? 'text-green-400' : 'text-red-500'}`}>{verificationData.status}</p>
-                 </div>
-                 <div className="p-4 bg-gray-900 rounded-xl border border-gray-800 text-center">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Correlation</p>
-                    <p className="text-xl font-black text-cyan-400">{(parseFloat(verificationData.correlation_score || 0) * 100).toFixed(2)}%</p>
-                 </div>
-                 <div className="p-4 bg-gray-900 rounded-xl border border-gray-800 text-center flex flex-col justify-center">
-                    <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Security</p>
-                    <p className="text-md font-black text-violet-400 tracking-tighter">AES-256</p>
-                 </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-900 rounded-xl border border-gray-800 text-center">
+                      <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Status</p>
+                      <p className={`text-xl font-black ${verificationData.status?.toLowerCase().includes('tamper') ? 'text-red-500' : 'text-green-400'}`}>
+                       {verificationData.status?.toLowerCase().includes('tamper') ? 'Tampered' : (verificationData.status ? 'Verified' : 'Unknown')}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gray-900 rounded-xl border border-gray-800 text-center">
+                      <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Score</p>
+                      <p className="text-xl font-black text-cyan-400">{(parseFloat(verificationData.correlation_score || 0) * 100).toFixed(2)}%</p>
+                    </div>
+                  </div>
             </Motion.div>
           </div>
         )}
