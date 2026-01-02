@@ -201,12 +201,18 @@ const ImageUploadPage = () => {
   return (
     <div className="min-h-screen pt-20 pb-10 bg-[#050505] text-white px-4">
       <Toaster />
-      <div className="max-w-5xl mx-auto text-center">
-        <h1 className="text-6xl font-extrabold mb-12 bg-linear-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent italic">Pixel Forensic Studio</h1>
-        <div className="p-10 border-2 border-dashed rounded-xl border-gray-800 bg-gray-900/10">
+     <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-6xl font-extrabold mb-4 bg-linear-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent uppercase tracking-tighter">
+            Image Upload
+          </h1>
+          <p className="text-gray-400 text-lg">AI Manipulation Detection & Digital Integrity Seals</p>
+        
+        <div className="p-10 border-2 border-dashed mt-20 rounded-xl border-gray-800 bg-gray-900/10">
           <Upload className="h-12 w-12 text-gray-500 mx-auto mb-4" />
           <input type="file" multiple accept="image/*" onChange={(e) => e.target.files && handleFileUpload(e.target.files)} className="hidden" id="multi-upload" />
-          <label htmlFor="multi-upload" className="inline-block px-10 py-4 bg-white text-black rounded-full font-bold cursor-pointer hover:scale-105 transition-transform">Select Images</label>
+          <label htmlFor="multi-upload" className="inline-block px-10 py-4 bg-blue-300 text-black rounded-full font-bold cursor-pointer hover:scale-105 transition-transform">Select Images</label>
+          </div>
           {files.length > 0 && (
             <div className="mt-10 space-y-3 text-left">
               {files.map((file) => (
@@ -221,7 +227,7 @@ const ImageUploadPage = () => {
               ))}
               <div className="flex justify-center gap-4 mt-10">
                 <button onClick={() => setShowAnalysisModal(true)} className="px-8 py-3 bg-gray-800 border border-gray-700 rounded-xl font-bold hover:border-cyan-400">AI Scan</button>
-                <button onClick={() => setShowWatermarkModal(true)} className="px-8 py-3 bg-linear-to-r from-cyan-500 to-blue-600 rounded-xl font-bold shadow-lg">Security Check</button>
+                <button onClick={() => setShowWatermarkModal(true)} className="px-8 py-3 bg-linear-to-r from-cyan-500 to-blue-600 rounded-xl font-bold shadow-lg">Protect Content</button>
               </div>
             </div>
           )}
