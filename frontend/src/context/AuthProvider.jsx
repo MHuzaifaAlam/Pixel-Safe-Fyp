@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       // ✅ Log error to satisfy ESLint "no-unused-vars"
-      console.error("Logout API failed:", error); 
+      console.error("Logout API failed:", error);
     } finally {
       // ✅ Always clear local session regardless of API success
       localStorage.removeItem("access_token");
@@ -41,6 +41,23 @@ export const AuthProvider = ({ children }) => {
       navigate("/login");
     }
   };
+
+  // Listen for autoLogout events (triggered from API when refresh fails)
+  React.useEffect(() => {
+    const handleAutoLogout = (e) => {
+      console.warn('Auto logout:', e.detail);
+      // Clear local state without attempting server logout
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("user_data");
+      setIsAuthenticated(false);
+      setUser(null);
+      navigate('/login');
+    };
+
+    window.addEventListener('autoLogout', handleAutoLogout);
+    return () => window.removeEventListener('autoLogout', handleAutoLogout);
+  }, [navigate]);
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, user, login, logout }}>

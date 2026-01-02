@@ -219,3 +219,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # settings.py
 
 ALLOWED_HOSTS = ['pixel-safe-fyp.onrender.com', 'localhost', '127.0.0.1']
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:5174",  # ✅ Add this one (your current frontend port)
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+]

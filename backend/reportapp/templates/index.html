@@ -15,9 +15,9 @@
             <div class="logo-container">
                 <div class="logo-box">
                     {% if logo_url %}
-                    <img src="{{ logo_url }}" alt="PS" style="width: 30px; height: 30px;">
+                    <img src="{{ logo_url }}" alt="PS" class="logo-img">
                     {% else %}
-                    PS
+                    <span class="logo-initial">PS</span>
                     {% endif %}
                 </div>
             </div>
@@ -46,8 +46,8 @@
         <div class="summary-grid" style="display: block;">
             <div class="summary-card"
                 style="display: inline-block; vertical-align: top; width: 32%; min-width: 180px; margin-right: 6px;">
-                <div class="summary-label">Integrity Score</div>
-                <div class="summary-value">{{ score }}</div>
+                <div class="summary-label">AI Score</div>
+                <div class="summary-value">{% if ai_score_display is not None %}{{ ai_score_display|floatformat:2 }}%{% elif verification_metrics.ai_score is not None %}{{ verification_metrics.ai_score|floatformat:2 }}%{% elif score is not None %}{{ score|floatformat:2 }}%{% else %}N/A{% endif %}</div>
             </div>
             <div class="summary-card"
                 style="display: inline-block; vertical-align: top; width: 32%; min-width: 180px; margin-right: 6px;">
@@ -156,6 +156,18 @@
                                 <tr>
                                     <th>Decryption success</th>
                                     <td>{{ verification_metrics.decryption_success }}</td>
+                                </tr>
+                                <tr>
+                                    <th>AI Integrity Score</th>
+                                    <td>
+                                        {% if ai_score_display is not None %}
+                                            {{ ai_score_display|floatformat:2 }}%
+                                        {% elif verification_metrics.ai_score is not None %}
+                                            {{ verification_metrics.ai_score|floatformat:2 }}%
+                                        {% else %}
+                                            {{ score|floatformat:2 }}%
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% else %}
                                 <tr>

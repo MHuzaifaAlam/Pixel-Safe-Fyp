@@ -33,6 +33,7 @@ class ReportViewSet(viewsets.ModelViewSet):
         Returns PDF file directly (not JSON)
         """
         image_id = request.data.get("image_id")
+        ai_score_raw = request.data.get("ai_score", None)
 
         if not image_id:
             return Response({"error": "image_id is required"}, status=400)
@@ -52,6 +53,33 @@ class ReportViewSet(viewsets.ModelViewSet):
             force = bool(request.data.get('force', False))
         except Exception:
             force = False
+
+        # If AI score was provided by the client (e.g., from a prior verification), normalize it and
+        # persist it to the existing report before regenerating PDF.
+        if existing_report and ai_score_raw is not None and not force:
+            try:
+                s = None
+                try:
+                    s = float(ai_score_raw)
+                except Exception:
+                    s = None
+
+                if s is not None:
+                    # Treat provided AI score as a percentage value already (e.g., 0.48 means 0.48%)
+                    p = round(s, 2)
+
+                    # Update existing report score (integer percent rounded) and verification_metrics (precise float)
+                    try:
+                        existing_report.score = int(round(p))
+                    except Exception:
+                        existing_report.score = existing_report.score or 0
+                    vm = existing_report.verification_metrics or {}
+                    vm['ai_score'] = p
+                    existing_report.verification_metrics = vm
+                    existing_report.save()
+            except Exception:
+                # Non-fatal; continue to regenerate from record
+                pass
 
         if existing_report and not force:
             # Regenerate PDF using existing report data (preserves heatmap/suspicious images)
@@ -93,7 +121,7 @@ class ReportViewSet(viewsets.ModelViewSet):
 
         # No existing report or force was requested: create a fresh report
         try:
-            report = self._create_single_report(image, request)
+            report = self._create_single_report(image, request, save_to_db=True, ai_score=ai_score_raw)
             return self._return_pdf_response(report, request, "new")
         except Exception as e:
             import traceback
@@ -185,6 +213,22 @@ class ReportViewSet(viewsets.ModelViewSet):
         if report.verification_metrics and isinstance(report.verification_metrics, dict):
             comparison_stats = report.verification_metrics.get('visual_statistics') or report.verification_metrics
 
+        # Compute AI score display value: if stored ai_score looks like a whole-percent (e.g., 48), convert to decimal percent (0.48)
+        vm = report.verification_metrics or {}
+        ai_raw = None
+        try:
+            ai_raw = vm.get('ai_score') if isinstance(vm, dict) else None
+        except Exception:
+            ai_raw = None
+
+        ai_score_display = None
+        try:
+            if ai_raw is not None:
+                a = float(ai_raw)
+                ai_score_display = (a if a <= 1 else a / 100.0)
+        except Exception:
+            ai_score_display = None
+
         context = {
             "report_id": f"PSF-{str(report.report_id)[:8].upper()}",
             "date": report.created_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -204,6 +248,7 @@ class ReportViewSet(viewsets.ModelViewSet):
             "comparison_img_url": comparison_img_url,
             "watermarked_images": watermarked_images,
             "verification_metrics": report.verification_metrics or {},
+            "ai_score_display": ai_score_display,
             "verification_status": report.verification_status,
             "comparison_stats": comparison_stats,
         }
@@ -318,10 +363,33 @@ class ReportViewSet(viewsets.ModelViewSet):
     # ======================
     # HELPER METHODS
     # ======================
-    def _create_single_report(self, image, request=None, save_to_db=True):
-        """Create a single report for an image"""
+    def _create_single_report(self, image, request=None, save_to_db=True, ai_score=None):
+        """Create a single report for an image
+
+        ai_score: optional, client-provided AI integrity score (can be 0-1 or 0-100). When provided,
+        normalize and store it as the report.score and in verification_metrics['ai_score'].
+        """
         # Prepare forensic data
-        score = 85
+        score = None
+        try:
+            if ai_score is not None:
+                try:
+                    s = float(ai_score)
+                    # Treat ai_score as a percentage already (e.g., 0.48 -> 0.48%) and preserve two decimals
+                    p = round(s, 2)
+                    try:
+                        score = int(round(p))
+                    except Exception:
+                        score = None
+                except Exception:
+                    score = None
+        except Exception:
+            score = None
+
+        # Fallback default score if none provided
+        if score is None:
+            score = 85
+
         watermark_status = "Valid"
         status_final = "Authentic"
         notes = "Image shows high authenticity confidence."
@@ -358,6 +426,33 @@ class ReportViewSet(viewsets.ModelViewSet):
         except Exception:
             original_metadata = {}
 
+        # Attach any AI score into verification_metrics (store as raw percent-like value)
+        verification_metrics = {}
+        try:
+            if ai_score is not None:
+                try:
+                    s = float(ai_score)
+                    # store as-is (if caller sent 0.48 we keep 0.48)
+                    p = round(s, 2)
+                    verification_metrics['ai_score'] = p
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Compute ai_score_display for template: if stored ai_score > 1 (e.g., 48), treat as whole-percent and convert to decimal percent
+        ai_score_display = None
+        try:
+            if verification_metrics and 'ai_score' in verification_metrics:
+                ar = verification_metrics['ai_score']
+                try:
+                    fv = float(ar)
+                    ai_score_display = fv if fv <= 1 else round(fv / 100.0, 4)
+                except Exception:
+                    ai_score_display = None
+        except Exception:
+            ai_score_display = None
+
         context = {
             "report_id": display_id,  # Display ID in PDF
             "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -386,14 +481,21 @@ class ReportViewSet(viewsets.ModelViewSet):
             "format": getattr(image, 'format', None),
             "image_size": getattr(image, 'ImageSize', None),
             "image_id": str(getattr(image, 'ImageID', '')),
-            "verification_metrics": None,
+            "verification_metrics": verification_metrics or {},
+            "ai_score_display": ai_score_display,
             "verification_status": None,
             "comparison_stats": None,
         }
-    
-        html = template.render(context)
-        HTML(string=html, base_url=base_url).write_pdf(pdf_path)
-    
+
+        try:
+            html = template.render(context)
+            HTML(string=html, base_url=base_url).write_pdf(pdf_path)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            # Raise so outer handler returns the trace in response
+            raise e
+
         if save_to_db:
             report = Report.objects.create(
                 report_id=report_uuid,  # Real UUID in DB
@@ -407,6 +509,7 @@ class ReportViewSet(viewsets.ModelViewSet):
                 file_hash=file_hash,
                 file_path=image.image.url if hasattr(image.image, 'url') else "",
                 pdf=f"reports/pdf/{pdf_name}",
+                verification_metrics=verification_metrics or None,
             )
             return report
         else:

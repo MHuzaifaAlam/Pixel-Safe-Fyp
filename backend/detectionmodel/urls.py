@@ -1,7 +1,7 @@
 from django.urls import path
-from .views import generate_scan_report 
+from . import views 
 
 urlpatterns = [
-    # This creates the endpoint: /api/detector/scan/
-    path('scan/', generate_scan_report, name='generate_scan_report-'),
+    # This must have the trailing slash to match the Axios call
+    path('scan/', views.generate_scan_report, name='generate_scan_report'),
 ]
