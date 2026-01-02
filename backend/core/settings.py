@@ -216,3 +216,6 @@ CORS_ALLOW_HEADERS = [
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# settings.py
+
+ALLOWED_HOSTS = ['pixel-safe-fyp.onrender.com', 'localhost', '127.0.0.1']
