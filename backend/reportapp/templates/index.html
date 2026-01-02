@@ -9,9 +9,8 @@
 </head>
 
 <body>
-    <!-- ========== PAGE 1: IMAGE ANALYSIS ========== -->
+    <!-- ========== PAGE 1: EXECUTIVE SUMMARY & EVIDENCE ========== -->
     <div class="page-1">
-        <!-- Header -->
         <div class="header">
             <div class="logo-container">
                 <div class="logo-box">
@@ -23,30 +22,56 @@
                 </div>
             </div>
             <div class="header-text">
-                <h1 class="title">Pixel-Safe Forensic Report</h1>
-                <div class="subtitle">Digital Image Authentication & Analysis</div>
+                <div class="eyebrow">Digital Forensic Laboratory · Pixel-Safe</div>
+                <h1 class="title">Forensic Verification Report</h1>
+                <div class="subtitle">Image Authentication & Watermark Integrity Assessment</div>
             </div>
+            <div class="header-badge">Court-Ready</div>
         </div>
 
-        <!-- Report Info -->
         <div class="report-info">
-            <div class="info-row">
-                <div>
+            <div class="info-row" style="display: block;">
+                <div style="margin-bottom: 8px;">
                     <div class="report-id">Report ID: <span>{{ report_id }}</span></div>
-                    <div class="meta-info">Generated: {{ date }} · Analyst: {{ user }}</div>
+                    <div class="meta-info">Generated: {{ date }} · Examiner: {{ user }}</div>
                 </div>
-                <div class="verified-badge">
-                    ✓ Verified by Pixel-Safe
+                <div class="pill-row" style="display: inline-flex; flex-wrap: wrap; gap: 6px; width: 100%;">
+                    <span class="pill accent">Verdict: {{ status|default:"Pending" }}</span>
+                    <span class="pill success">Watermark: {{ watermark_status|default:"N/A" }}</span>
+                    <span class="pill neutral">Scope: Image Integrity</span>
                 </div>
             </div>
         </div>
 
-        <!-- Full-page Image Comparison -->
-        <div class="comparison-section">
-            <h2 class="section-title">Image Analysis & Comparison</h2>
+        <div class="summary-grid" style="display: block;">
+            <div class="summary-card"
+                style="display: inline-block; vertical-align: top; width: 32%; min-width: 180px; margin-right: 6px;">
+                <div class="summary-label">Integrity Score</div>
+                <div class="summary-value">{{ score }}</div>
+            </div>
+            <div class="summary-card"
+                style="display: inline-block; vertical-align: top; width: 32%; min-width: 180px; margin-right: 6px;">
+                <div class="summary-label">Watermark Status</div>
+                <div class="badge badge-success">{{ watermark_status }}</div>
+            </div>
+            <div class="summary-card" style="display: inline-block; vertical-align: top; width: 32%; min-width: 180px;">
+                <div class="summary-label">Final Verdict</div>
+                <div class="badge badge-accent">{{ status }}</div>
+            </div>
+        </div>
 
-            <div class="image-grid">
-                <div class="image-item">
+        <div class="section-card">
+            <div class="section-heading">
+                <div>
+                    <div class="eyebrow">Exhibit A</div>
+                    <h2 class="section-title">Evidence Board</h2>
+                </div>
+                <div class="section-note">Aligned for side-by-side inspection</div>
+            </div>
+
+            <div class="image-grid" style="display: block; text-align: center;">
+                <div class="image-item framed"
+                    style="display: inline-block; vertical-align: top; width: 32%; min-width: 200px; margin-right: 6px;">
                     <div class="image-label">Original Image</div>
                     <div class="image-container">
                         {% if original_img_url %}
@@ -60,21 +85,23 @@
                     </div>
                 </div>
 
-                <div class="image-item">
-                    <div class="image-label">Suspected (Tampered)</div>
+                <div class="image-item framed"
+                    style="display: inline-block; vertical-align: top; width: 32%; min-width: 200px; margin-right: 6px;">
+                    <div class="image-label">Suspicious Upload</div>
                     <div class="image-container">
                         {% if tampered_img_url %}
-                        <img src="{{ tampered_img_url }}" alt="Tampered Image">
+                        <img src="{{ tampered_img_url }}" alt="Suspicious Image">
                         {% else %}
                         <div class="image-placeholder">
                             <div class="image-placeholder-icon">🔍</div>
-                            Suspected Image
+                            Suspicious Image
                         </div>
                         {% endif %}
                     </div>
                 </div>
 
-                <div class="image-item">
+                <div class="image-item framed"
+                    style="display: inline-block; vertical-align: top; width: 32%; min-width: 200px;">
                     <div class="image-label">Forensic Heatmap</div>
                     <div class="image-container">
                         {% if heatmap_img_url %}
@@ -88,190 +115,179 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Comparison image (if present) -->
-            {% if comparison_img_url or heatmap_img_url %}
-            <div class="mt-15">
-                <strong>Comparison / Heatmap Overlay</strong>
-                <div class="image-container mt-10" style="min-height:150px;">
-                    {% if heatmap_img_url %}
-                    <img src="{{ heatmap_img_url }}" alt="Heatmap">
-                    {% else %}
-                    <img src="{{ comparison_img_url }}" alt="Comparison Overlay">
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-            <!-- Metrics -->
-            <div class="kpi-container">
-                <div class="kpi-item">
-                    <div class="kpi-value tampering-score">{{ score }}</div>
-                    <div class="kpi-label">Tampering Score</div>
-                </div>
-
-                <div class="kpi-item">
-                    <div class="kpi-value watermark-valid">{{ watermark_status }}</div>
-                    <div class="kpi-label">Watermark Status</div>
-                </div>
-
-                <div class="kpi-item">
-                    <div class="kpi-value verdict-authentic">{{ status }}</div>
-                    <div class="kpi-label">Final Verdict</div>
-                </div>
-            </div>
         </div>
     </div>
 
-    <!-- ========== PAGE 2: DETAILS ========== -->
+    <!-- ========== PAGE 2: DETAILED FINDINGS ========== -->
     <div class="page-2">
         <div class="details-container">
-            <!-- Analysis Summary -->
-            <div class="detail-card">
-                <h2 class="detail-title">Analysis Summary</h2>
+            <div class="section-card">
+                <div class="section-heading">
+                    <div class="eyebrow">Findings</div>
+                    <h2 class="section-title">Analysis Summary</h2>
+                </div>
                 <div class="summary-content">
-                    {{ notes|default:"Based on comprehensive forensic analysis, this image demonstrates high
-                    authenticity confidence with minimal indicators of digital manipulation. The cryptographic watermark
-                    verification passed all integrity checks, and pixel-level analysis revealed consistent patterns
-                    throughout the image composition. No significant anomalies were detected in the metadata structure
-                    or compression artifacts." }}
+                    {{ notes|default:"Based on comprehensive forensic analysis, the subject image demonstrates high
+                    authenticity confidence with minimal indicators of manipulation. Watermark validation passed, and
+                    pixel-level review showed consistent patterns. No significant anomalies were detected in metadata or
+                    compression artifacts." }}
                 </div>
             </div>
 
-            <!-- Metadata -->
-            <div class="detail-card">
-                <h2 class="detail-title">Technical Metadata</h2>
-                <div class="meta-compare">
-                    <div class="meta-col">
-                        <div class="meta-subtitle">Original Image Metadata</div>
-                        <div class="metadata-display">
-                            {% if file_name %}
-                            <div><strong>File Name:</strong> {{ file_name }}</div>
-                            {% endif %}
-                            {% if format %}
-                            <div><strong>Format:</strong> {{ format }}</div>
-                            {% endif %}
-                            {% if image_size %}
-                            <div><strong>Image Size (bytes):</strong> {{ image_size }}</div>
-                            {% endif %}
-                            {% if image_id %}
-                            <div><strong>Image ID:</strong> {{ image_id }}</div>
-                            {% endif %}
-                            {% if original_metadata %}
-                            {% for key, value in original_metadata.items %}
-                            <div><strong>{{ key }}:</strong> {{ value }}</div>
-                            {% endfor %}
-                            {% else %}
-                            <div>No additional original metadata found.</div>
-                            {% endif %}
-                        </div>
+            <div class="section-card">
+                <div class="section-heading">
+                    <div class="eyebrow">Metrics</div>
+                    <h2 class="section-title">Verification Snapshot</h2>
+                </div>
+                <div class="table-grid" style="display: block;">
+                    <div class="table-card" style="width: 100%; margin-bottom: 12px;">
+                        <div class="table-title">Watermark Check</div>
+                        <table class="data-table">
+                            <tbody>
+                                {% if verification_metrics %}
+                                <tr>
+                                    <th>Hamming distance</th>
+                                    <td>{{ verification_metrics.hamming_distance }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Watermark similarity</th>
+                                    <td>{{ verification_metrics.watermark_similarity }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Decryption success</th>
+                                    <td>{{ verification_metrics.decryption_success }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="2">No verification metrics available.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
                     </div>
-
-                    <div class="meta-col">
-                        <div class="meta-subtitle">Suspected Image Metadata</div>
-                        <div class="metadata-display">
-                            {% if suspicious_metadata %}
-                            {% for key, value in suspicious_metadata.items %}
-                            <div><strong>{{ key }}:</strong> {{ value }}</div>
-                            {% endfor %}
-                            {% else %}
-                            <div>No suspicious metadata available.</div>
-                            {% endif %}
-                        </div>
+                    <div class="table-card" style="width: 100%;">
+                        <div class="table-title">Observations</div>
+                        <table class="data-table">
+                            <tbody>
+                                {% if comparison_stats %}
+                                {% for key, value in comparison_stats.items %}
+                                <tr>
+                                    <th>{{ key|capfirst }}</th>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr>
+                                    <td colspan="2">No additional visual observations recorded.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Suspicious Image & Verification -->
-            <div class="detail-card">
-                <h2 class="detail-title">Verification & Comparison</h2>
-
-                <div class="meta-grid">
-                    <div>
-                        <strong>Verification Summary</strong>
-                        <div class="metadata-display mt-10">
-                            {% if verification_metrics %}
-                            <div>Hamming distance: {{ verification_metrics.hamming_distance }}</div>
-                            <div>Watermark similarity: {{ verification_metrics.watermark_similarity }}</div>
-                            <div>Decryption success: {{ verification_metrics.decryption_success }}</div>
-                            {% else %}
-                            <div>No verification metrics available.</div>
-                            {% endif %}
-                        </div>
+            <div class="section-card">
+                <div class="section-heading">
+                    <div class="eyebrow">Metadata</div>
+                    <h2 class="section-title">Technical Details</h2>
+                </div>
+                <div class="table-grid" style="display: block;">
+                    <div class="table-card" style="width: 100%; margin-bottom: 12px;">
+                        <div class="table-title">Original Image Metadata</div>
+                        <table class="data-table">
+                            <tbody>
+                                {% if file_name %}<tr>
+                                    <th>File Name</th>
+                                    <td>{{ file_name }}</td>
+                                </tr>{% endif %}
+                                {% if format %}<tr>
+                                    <th>Format</th>
+                                    <td>{{ format }}</td>
+                                </tr>{% endif %}
+                                {% if image_size %}<tr>
+                                    <th>Image Size (bytes)</th>
+                                    <td>{{ image_size }}</td>
+                                </tr>{% endif %}
+                                {% if image_id %}<tr>
+                                    <th>Image ID</th>
+                                    <td>{{ image_id }}</td>
+                                </tr>{% endif %}
+                                {% if original_metadata %}
+                                {% for key, value in original_metadata.items %}
+                                <tr>
+                                    <th>{{ key }}</th>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr>
+                                    <td colspan="2">No additional original metadata found.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
                     </div>
-
-                    <div>
-                        <strong>Visual Comparison</strong>
-                        <div class="metadata-display mt-10">
-                            {% if comparison_stats %}
-                            {% for key, value in comparison_stats.items %}
-                            <div><strong>{{ key|capfirst }}:</strong> {{ value }}</div>
-                            {% endfor %}
-                            {% else %}
-                            <div>No visual comparison data available.</div>
-                            {% endif %}
-                        </div>
+                    <div class="table-card" style="width: 100%;">
+                        <div class="table-title">Suspicious Image Metadata</div>
+                        <table class="data-table">
+                            <tbody>
+                                {% if suspicious_metadata %}
+                                {% for key, value in suspicious_metadata.items %}
+                                <tr>
+                                    <th>{{ key }}</th>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr>
+                                    <td colspan="2">No suspicious metadata available.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-
-                {% if heatmap_img_url %}
-                <div class="mt-15">
-                    <strong>Heatmap / Comparison Image</strong>
-                    <div class="image-container mt-10" style="min-height:150px;">
-                        <img src="{{ heatmap_img_url }}" alt="Heatmap">
-                    </div>
-                </div>
-                {% endif %}
             </div>
 
-
-
-
-            <!-- Chain of Custody -->
-            <div class="detail-card">
-                <h2 class="detail-title">Digital Chain of Custody</h2>
-                <div class="chain-grid">
-                    <div class="chain-item">
+            <div class="section-card">
+                <div class="section-heading">
+                    <div class="eyebrow">Custody</div>
+                    <h2 class="section-title">Digital Chain of Custody</h2>
+                </div>
+                <div class="chain-grid" style="display: block;">
+                    <div class="chain-item"
+                        style="display: inline-block; vertical-align: top; width: 48%; min-width: 200px; margin-right: 6px;">
                         <div class="chain-label">Submitted By</div>
                         <div class="chain-value">{{ user }}</div>
                     </div>
-
-                    <div class="chain-item">
+                    <div class="chain-item"
+                        style="display: inline-block; vertical-align: top; width: 48%; min-width: 200px;">
                         <div class="chain-label">Analysis ID</div>
                         <div class="chain-value">{{ report_id }}</div>
                     </div>
-
-                    <div class="chain-item">
+                    <div class="chain-item"
+                        style="display: inline-block; vertical-align: top; width: 48%; min-width: 200px; margin-right: 6px;">
                         <div class="chain-label">File Hash (SHA-256)</div>
-                        <div class="chain-value hash-display">
-                            {{ file_hash|default:"abc123xyz789def456ghi..." }}
-                        </div>
+                        <div class="chain-value hash-display">{{ file_hash|default:"abc123xyz789def456ghi..." }}</div>
                     </div>
-
-                    <div class="chain-item">
+                    <div class="chain-item"
+                        style="display: inline-block; vertical-align: top; width: 48%; min-width: 200px;">
                         <div class="chain-label">Storage Path</div>
-                        <div class="chain-value">
-                            {{ file_path|default:"/secure/evidence/PSF-1001/" }}
-                        </div>
+                        <div class="chain-value">{{ file_path|default:"/secure/evidence/PSF-1001/" }}</div>
                     </div>
                 </div>
-
                 <div class="audit-note">
-                    <strong>Audit Information:</strong> This forensic report has been digitally signed and timestamped
-                    using blockchain verification. All analysis procedures are logged and verifiable through the
-                    Pixel-Safe forensic platform.
+                    Audit log retained for evidentiary purposes. All processing actions are timestamped and recorded
+                    within the Pixel-Safe forensic platform.
                 </div>
             </div>
         </div>
 
-        <!-- Footer -->
         <div class="footer">
-            <div>Pixel-Safe Forensic Report v2.1 · {{ date }}</div>
-            <div class="footer-divider">
-                University of Central Punjab · Dark Cyber Forensics Division
-            </div>
-            <div class="confidential-notice">
-                CONFIDENTIAL - This document contains sensitive forensic analysis.
-            </div>
+            <div>Pixel-Safe Forensic Report · {{ date }}</div>
+            <div class="footer-divider">University of Central Punjab · Digital Forensics</div>
+            <div class="confidential-notice">CONFIDENTIAL – For evidentiary and academic review only.</div>
         </div>
     </div>
 </body>

@@ -26,8 +26,6 @@ class Report(models.Model):
     file_hash = models.CharField(max_length=200)
     file_path = models.CharField(max_length=255)
 
-    original_image = models.ImageField(upload_to="reports/originals/", null=True, blank=True)
-    tampered_image = models.ImageField(upload_to="reports/tampered/", null=True, blank=True)
     heatmap_image = models.ImageField(upload_to="reports/heatmap/", null=True, blank=True)
 
     pdf = models.FileField(upload_to="reports/pdf/", null=True,blank=True)
