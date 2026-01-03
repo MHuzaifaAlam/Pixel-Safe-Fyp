@@ -12,20 +12,22 @@
     <!-- ========== PAGE 1: EXECUTIVE SUMMARY & EVIDENCE ========== -->
     <div class="page-1">
         <div class="header">
-            <div class="logo-container">
+            <div class="logo-top">
                 <div class="logo-box">
                     {% if logo_url %}
                     <img src="{{ logo_url }}" alt="PS" class="logo-img">
                     {% else %}
-                    <span class="logo-initial">PS</span>
+                    <img src="file:///E:/Huzaifa/FYP-Dat/Pixel-Safe-Fyp/backend/reportapp/assets/logo.png" alt="PS" class="logo-img">
                     {% endif %}
                 </div>
             </div>
+
             <div class="header-text">
                 <div class="eyebrow">Digital Forensic Laboratory · Pixel-Safe</div>
                 <h1 class="title">Forensic Verification Report</h1>
                 <div class="subtitle">Image Authentication & Watermark Integrity Assessment</div>
             </div>
+
             <div class="header-badge">Court-Ready</div>
         </div>
 
@@ -160,9 +162,7 @@
                                 <tr>
                                     <th>AI Integrity Score</th>
                                     <td>
-                                        {% if ai_score_display is not None %}
-                                            {{ ai_score_display|floatformat:2 }}%
-                                        {% elif verification_metrics.ai_score is not None %}
+                                        {% if verification_metrics.ai_score is not None %}
                                             {{ verification_metrics.ai_score|floatformat:2 }}%
                                         {% else %}
                                             {{ score|floatformat:2 }}%

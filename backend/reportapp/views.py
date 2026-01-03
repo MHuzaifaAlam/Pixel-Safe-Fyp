@@ -229,6 +229,17 @@ class ReportViewSet(viewsets.ModelViewSet):
         except Exception:
             ai_score_display = None
 
+        # Compute logo URL: prefer local file:// path for WeasyPrint, else fall back to static URL
+        logo_url = None
+        try:
+            logo_path = os.path.join(os.path.dirname(__file__), 'assets', 'logo.png')
+            if os.path.exists(logo_path):
+                logo_url = 'file://' + os.path.abspath(logo_path)
+            else:
+                logo_url = urljoin(base_url, settings.STATIC_URL.rstrip('/') + '/reportapp/assets/logo.png')
+        except Exception:
+            logo_url = None
+
         context = {
             "report_id": f"PSF-{str(report.report_id)[:8].upper()}",
             "date": report.created_at.strftime("%Y-%m-%d %H:%M:%S"),
@@ -249,6 +260,7 @@ class ReportViewSet(viewsets.ModelViewSet):
             "watermarked_images": watermarked_images,
             "verification_metrics": report.verification_metrics or {},
             "ai_score_display": ai_score_display,
+            "logo_url": logo_url,
             "verification_status": report.verification_status,
             "comparison_stats": comparison_stats,
         }

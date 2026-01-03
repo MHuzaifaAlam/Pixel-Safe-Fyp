@@ -17,7 +17,8 @@ const ImageUploadPage = () => {
 
   const resolveUrl = (u) => {
     if (!u) return "";
-    if (u.startsWith("http")) return u;
+    // If it's an absolute URL or a blob/data/file URL, use as-is
+    if (u.startsWith("http") || u.startsWith("https") || u.startsWith("blob:") || u.startsWith("data:") || u.startsWith("file:")) return u;
     const path = u.startsWith("/") ? u : `/${u}`;
     return `${BACKEND_URL}${path}`;
   };
@@ -48,32 +49,36 @@ const ImageUploadPage = () => {
   };
 
   const handleMLAnalysis = async (mode) => {
-    setShowAnalysisModal(false);
-    const load = toast.loading("Executing AI Artifact Scan...");
-    try {
-      const { images } = await uploadFilesToBackend(mode);
-      const res = await api.post("scan/", { image_id: images[0].ImageID, scan_mode: mode });
+  setShowAnalysisModal(false);
+  const load = toast.loading("Executing AI Artifact Scan...");
+  
+  try {
+    // Save the local preview URL before the async call
+    const localPreview = files[0]?.preview;
 
-      const heatmap = res.data.heatmap_url || res.data.comparison_url || res.data.result_image || res.data.visual_url;
+    const { images } = await uploadFilesToBackend(mode);
+    const res = await api.post("scan/", { 
+      image_id: images[0].ImageID, 
+      scan_mode: mode 
+    });
 
-      setVerificationData({
-        status: res.data.verdict || "Analyzed",
-        score: res.data.score || 0,
-        verdict: res.data.verdict,
-        display_image: heatmap || files[0]?.preview,
-        report_id: res.data.report_id,
-        image_id: images[0].ImageID
-      });
-      setShowVerifyPopup(true);
+    setVerificationData({
+      status: res.data.verdict || "Analyzed",
+      score: res.data.score || 0,
+      verdict: res.data.verdict,
+      // ✅ Force the use of the local preview saved above
+      display_image: localPreview, 
+      report_id: res.data.report_id,
+      image_id: images[0].ImageID
+    });
 
-      setFiles((prev) => prev.map((f) => ({ ...f, db_id: images[0].ImageID, status: "completed", result: res.data.verdict })));
-      toast.success("AI Analysis Complete", { id: load });
-    } catch (err) {
-      toast.error("Analysis failed", { id: load });
-      console.error(err);
-    }
-  };
-
+    setShowVerifyPopup(true);
+    toast.success("AI Analysis Complete", { id: load });
+  } catch (err) {
+    toast.error("Analysis failed", { id: load });
+    console.error(err);
+  }
+};
   const handleVerifyWatermark = async () => {
     if (files.length === 0) return toast.error("No images selected.");
     const load = toast.loading("Executing Dual-Layer Forensic Analysis...");
@@ -212,7 +217,7 @@ const ImageUploadPage = () => {
           <Upload className="h-12 w-12 text-gray-500 mx-auto mb-4" />
           <input type="file" multiple accept="image/*" onChange={(e) => e.target.files && handleFileUpload(e.target.files)} className="hidden" id="multi-upload" />
           <label htmlFor="multi-upload" className="inline-block px-10 py-4 bg-blue-300 text-black rounded-full font-bold cursor-pointer hover:scale-105 transition-transform">Select Images</label>
-          </div>
+         
           {files.length > 0 && (
             <div className="mt-10 space-y-3 text-left">
               {files.map((file) => (
@@ -230,7 +235,9 @@ const ImageUploadPage = () => {
                 <button onClick={() => setShowWatermarkModal(true)} className="px-8 py-3 bg-linear-to-r from-cyan-500 to-blue-600 rounded-xl font-bold shadow-lg">Protect Content</button>
               </div>
             </div>
+            
           )}
+           </div>
         </div>
       </div>
       <AnimatePresence>
