@@ -1,7 +1,3 @@
-/**
- * PIXEL SAFE - Background Service Worker
- * Handles authentication, API communication, and message routing
- */
 
 const API_BASE_URL = 'http://127.0.0.1:8000/api';
 const TOKEN_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes

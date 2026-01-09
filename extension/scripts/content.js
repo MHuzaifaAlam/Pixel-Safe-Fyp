@@ -1,8 +1,3 @@
-/**
- * PIXEL SAFE - Content Script
- * Injects verification buttons on images across social media platforms
- */
-
 // Configuration for different social media platforms
 const PLATFORM_CONFIG = {
   'facebook.com': {

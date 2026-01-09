@@ -55,8 +55,7 @@ class BatchViewSet(viewsets.ModelViewSet):
         batch = self.get_object()
         images = batch.images.all()
         
-        # ✅ CRITICAL: Pass context={'request': request} 
-        # This tells the serializer to generate FULL URLs (http://...)
+
         serializer = ImageSerializer(images, many=True, context={'request': request})
         
         return Response({
@@ -85,7 +84,7 @@ class UserImageView(viewsets.ModelViewSet):
         files = request.FILES.getlist('image')
         batch_name = request.data.get('batch_name', '').strip()
         
-        # ✅ Capture action_mode (gan, watermark, heatmap)
+        #  Capture action_mode (gan, watermark, heatmap)
         action_mode = request.data.get('action_mode', 'analysis')
         
         if not files:
@@ -102,7 +101,7 @@ class UserImageView(viewsets.ModelViewSet):
                 batch = Batch.objects.create(user=request.user, name=batch_name)
             
             for i, file in enumerate(files):
-                # ✅ Metadata populated with action_mode for the React Dashboard
+                #  Metadata populated with action_mode for the React Dashboard
                 image = Image.objects.create(
                     user=request.user,
                     image=file,

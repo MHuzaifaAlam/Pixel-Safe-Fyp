@@ -28,7 +28,7 @@ def delete_report_when_image_deleted(sender, instance, **kwargs):
 
 
 # ============================
-# DELETE ALL REPORTS WHEN BATCH IS DELETED
+# ALL REPORTS WHEN BATCH IS DELETED
 # ============================
 @receiver(pre_delete, sender=Batch)
 def delete_reports_when_batch_deleted(sender, instance, **kwargs):

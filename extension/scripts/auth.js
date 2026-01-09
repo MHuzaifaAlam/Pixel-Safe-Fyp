@@ -1,9 +1,3 @@
-/**
- * PIXEL SAFE - Authentication Script
- * Handles login and signup functionality
- */
-
-// DOM Elements
 let elements = {};
 
 /**

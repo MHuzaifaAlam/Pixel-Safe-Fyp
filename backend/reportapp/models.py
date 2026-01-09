@@ -4,7 +4,6 @@ from django.contrib.auth.models import User
 from imageapp.models import Image
 
 try:
-    # avoid circular import in some contexts
     from watermark.models import WatermarkRecord
 except Exception:
     WatermarkRecord = None

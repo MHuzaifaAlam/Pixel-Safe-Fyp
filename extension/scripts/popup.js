@@ -1,9 +1,4 @@
-/**
- * PIXEL SAFE - Popup Script
- * Handles popup UI interactions and state management
- */
 
-// DOM Elements
 let elements = {};
 
 /**

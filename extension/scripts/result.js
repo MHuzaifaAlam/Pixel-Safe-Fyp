@@ -1,9 +1,4 @@
-/**
- * PIXEL SAFE - Result Script
- * Displays verification results with detailed metrics
- */
 
-// DOM Elements
 let elements = {};
 let resultData = null;
 

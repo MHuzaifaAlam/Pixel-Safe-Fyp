@@ -50,8 +50,7 @@ class Image(models.Model):
     Status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploaded')
     
     # Link to Batch
-    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, 
-                            null=True, blank=True, related_name='images')
+    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, null=True, blank=True, related_name='images')
     batch_position = models.IntegerField(null=True, blank=True)
     
     class Meta:
@@ -74,7 +73,7 @@ def delete_image_file(sender, instance, **kwargs):
                 os.remove(instance.image.path)
         except:
             pass  # File might already be deleted
-    if instance.batch_id:  # Use batch_id instead of batch to avoid DB hit if possible
+    if instance.batch_id:
         try:
             # Get the batch from database using the ID
             from django.db import transaction

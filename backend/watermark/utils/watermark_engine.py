@@ -41,15 +41,14 @@ class WatermarkEngine:
     
     def embed_with_id(self, image_array, secret_data, watermark_id):
         """
-        Embed watermark directly (no JSON wrapper for simplicity)
+        Embed watermark 
         """
-        # Just embed the encrypted data directly
-        # The watermark_id is stored in the database, not embedded
+
         return self.embed_watermark(image_array, secret_data)
     
     def extract_with_id(self, image_array, num_bits):
         """
-        Extract watermark (raw bytes, no JSON parsing needed)
+        Extract watermark 
         """
         extracted_bits = self.extract_watermark(image_array, num_bits)
         extracted_bytes = self._bits_to_bytes(extracted_bits)

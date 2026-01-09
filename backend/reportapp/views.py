@@ -43,10 +43,7 @@ class ReportViewSet(viewsets.ModelViewSet):
         except Image.DoesNotExist:
             return Response({"error": "Image not found or access denied"}, status=404)
 
-        # If a report already exists for this image, by default regenerate the PDF from the record
-        # (preserving any attached suspicious/heatmap images and verification metadata).
-        # If the client explicitly passes `force=true`, perform the old behavior of deleting
-        # the record and recreating a fresh report.
+
         existing_report = Report.objects.filter(image=image).first()
         force = False
         try:
@@ -54,8 +51,7 @@ class ReportViewSet(viewsets.ModelViewSet):
         except Exception:
             force = False
 
-        # If AI score was provided by the client (e.g., from a prior verification), normalize it and
-        # persist it to the existing report before regenerating PDF.
+
         if existing_report and ai_score_raw is not None and not force:
             try:
                 s = None
@@ -68,7 +64,7 @@ class ReportViewSet(viewsets.ModelViewSet):
                     # Treat provided AI score as a percentage value already (e.g., 0.48 means 0.48%)
                     p = round(s, 2)
 
-                    # Update existing report score (integer percent rounded) and verification_metrics (precise float)
+
                     try:
                         existing_report.score = int(round(p))
                     except Exception:
@@ -213,7 +209,6 @@ class ReportViewSet(viewsets.ModelViewSet):
         if report.verification_metrics and isinstance(report.verification_metrics, dict):
             comparison_stats = report.verification_metrics.get('visual_statistics') or report.verification_metrics
 
-        # Compute AI score display value: if stored ai_score looks like a whole-percent (e.g., 48), convert to decimal percent (0.48)
         vm = report.verification_metrics or {}
         ai_raw = None
         try:

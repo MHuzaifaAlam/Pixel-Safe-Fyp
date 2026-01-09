@@ -20,7 +20,6 @@ from rest_framework.permissions import IsAuthenticated
 
 logger = logging.getLogger(__name__)
 
-# Add this helper function
 def safe_json_response(data, status=200):
     """Safely convert data to JSON, handling bytes and other non-serializable types"""
     import json as json_module
