@@ -10,7 +10,8 @@ const ImageUploadPage = () => {
   const [files, setFiles] = useState([]);
   const [showWatermarkModal, setShowWatermarkModal] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [verificationData, setVerificationData] = useState(null);
+  // ✅ Changed to an array to handle multiple results
+  const [verificationData, setVerificationData] = useState([]); 
   const [showVerifyPopup, setShowVerifyPopup] = useState(false);
 
   const BACKEND_URL = "http://127.0.0.1:8000";
@@ -38,124 +39,133 @@ const ImageUploadPage = () => {
 
   const handleRemoveFile = (id) => setFiles((prev) => prev.filter((file) => file.id !== id));
 
-  const uploadFilesToBackend = async (mode = "analysis") => {
+  const uploadSingleFile = async (fileObj, mode) => {
     const formData = new FormData();
-    files.forEach((f) => formData.append("image", f.file));
+    formData.append("image", fileObj.file);
     formData.append("action_mode", mode);
     const response = await api.post("images/", formData, { 
       headers: { "Content-Type": "multipart/form-data" } 
     });
-    const images = Array.isArray(response.data.images) ? response.data.images : [response.data];
-    return { images };
+    return Array.isArray(response.data.images) ? response.data.images[0] : response.data;
   };
 
+  // ✅ BATCH AI SCAN: Handles multiple images and shows all in popup
   const handleMLAnalysis = async () => {
-    if (files.length === 0) return toast.error("Please select an image first.");
+    if (files.length === 0) return toast.error("Please select images first.");
     setShowAnalysisModal(false);
-    const load = toast.loading("Executing AI Artifact Scan...");
+    const load = toast.loading(`Scanning ${files.length} images...`);
+    const resultsArray = [];
     
     try {
-      const { images } = await uploadFilesToBackend("analysis");
-      const currentImageId = images[0].ImageID;
-
-      const res = await api.post("scan/", { 
-          image_id: currentImageId,
-          scan_mode: "gan" 
-      });
-      
-      if (res.status === 200) {
-        let finalVerdict = res.data.verdict;
+      for (const fileObj of files) {
+        const dbImage = await uploadSingleFile(fileObj, "analysis");
+        const res = await api.post("scan/", { 
+            image_id: dbImage.ImageID,
+            scan_mode: "gan" 
+        });
+        
         const s = res.data.score || 0;
-        if (!finalVerdict || finalVerdict === "Analysis Complete") {
-            if (s > 80) finalVerdict = "HIGH AI INTENSITY";
-            else if (s > 50) finalVerdict = "MODERATE AI INTENSITY";
-            else if (s > 25) finalVerdict = "LOW INTENSITY AI";
-            else finalVerdict = "AUTHENTIC / REAL";
+        let verdict = res.data.verdict;
+        if (!verdict || verdict === "Analysis Complete") {
+            if (s > 80) verdict = "HIGH AI INTENSITY";
+            else if (s > 50) verdict = "MODERATE AI INTENSITY";
+            else if (s > 25) verdict = "LOW INTENSITY AI";
+            else verdict = "AUTHENTIC / REAL";
         }
 
-        setVerificationData({
-          status: finalVerdict, 
+        resultsArray.push({
+          status: verdict, 
           score: s.toFixed(2),
-          verdict: finalVerdict,
-          display_image: res.data.visual_url || images[0].image,
-          image_id: currentImageId
+          display_image: res.data.visual_url || dbImage.image,
+          image_id: dbImage.ImageID,
+          name: fileObj.name
         });
 
-        setShowVerifyPopup(true);
-        toast.success("Forensic Scan Successful", { id: load });
+        setFiles(prev => prev.map(f => f.id === fileObj.id ? { 
+          ...f, status: "completed", result: verdict, db_id: dbImage.ImageID 
+        } : f));
       }
+      setVerificationData(resultsArray);
+      setShowVerifyPopup(true);
+      toast.success("Batch Scan Complete", { id: load });
     } catch (error) {
       console.error(error);
-      toast.error("Analysis failed.");
-      toast.dismiss(load);
+      toast.error("Batch scan failed.", { id: load });
     }
   };
 
+  // ✅ BATCH INTEGRITY VERIFY: Handles multiple images
   const handleVerifyWatermark = async () => {
     if (files.length === 0) return toast.error("No images selected.");
-    const load = toast.loading("Executing Dual-Layer Forensic Analysis...");
+    const load = toast.loading(`Verifying Batch (${files.length} images)...`);
+    const resultsArray = [];
+
     try {
-      const fd = new FormData();
-      fd.append("image", files[0].file);
-      fd.append("scan_mode", "gan");
+      for (const fileObj of files) {
+        const fd = new FormData();
+        fd.append("image", fileObj.file);
+        fd.append("scan_mode", "gan");
 
-      const [watermarkRes, aiRes] = await Promise.all([
-        api.post("watermark/auto-verify/", fd),
-        api.post("scan/", fd)
-      ]);
+        const [watermarkRes, aiRes] = await Promise.all([
+          api.post("watermark/auto-verify/", fd),
+          api.post("scan/", fd)
+        ]);
 
-      const imageId = watermarkRes.data.image_id || aiRes.data.image_id || files[0].db_id;
-      const isAuthentic = watermarkRes.data.status?.toLowerCase().includes("authentic") || 
-                         watermarkRes.data.status?.toLowerCase().includes("success");
-      
-      const finalStatus = isAuthentic ? "AUTHENTIC / REAL" : "TAMPERED / MODIFIED";
+        const imageId = watermarkRes.data.image_id || aiRes.data.image_id;
+        const isAuthentic = watermarkRes.data.status?.toLowerCase().includes("authentic");
+        const finalStatus = isAuthentic ? "AUTHENTIC / REAL" : "TAMPERED / MODIFIED";
 
-      setVerificationData({
-        status: finalStatus,
-        score: (aiRes.data.score || 0).toFixed(2),
-        verdict: aiRes.data.verdict || finalStatus,
-        display_image: watermarkRes.data.forensic_visualization || 
-                       watermarkRes.data.comparison_url || 
-                       files[0].preview,
-        image_id: imageId
-      });
+        resultsArray.push({
+          status: finalStatus,
+          score: (aiRes.data.score || 0).toFixed(2),
+          display_image: watermarkRes.data.forensic_visualization || watermarkRes.data.comparison_url || fileObj.preview,
+          image_id: imageId,
+          name: fileObj.name
+        });
 
+        setFiles(prev => prev.map(f => f.id === fileObj.id ? { 
+          ...f, status: "completed", result: `${finalStatus} | AI: ${aiRes.data.score}%`, db_id: imageId 
+        } : f));
+      }
+      setVerificationData(resultsArray);
       setShowVerifyPopup(true);
-      toast.success(isAuthentic ? "Integrity Confirmed" : "Anomalies Detected", { id: load });
+      toast.success("Batch Integrity Verified", { id: load });
     } catch (error) {
       console.error(error);
-      toast.error("Integrity scan failed.", { id: load });
+      toast.error("Batch verification failed.", { id: load });
     }
   };
 
   const downloadSingleReport = async (imageID, aiScore = null) => {
-    if (!imageID) return toast.error('Invalid report reference.');
-    const load = toast.loading("Generating Forensic PDF...");
+    if (!imageID) return toast.error('Invalid reference.');
+    const load = toast.loading("Generating PDF...");
     try {
       const payload = { image_id: imageID };
       if (aiScore !== null) payload.ai_score = parseFloat(aiScore);
       const response = await api.post("reports/generate/", payload, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       window.open(url, '_blank');
-      toast.success("PDF dossier prepared", { id: load });
+      toast.success("Dossier Prepared", { id: load });
     } catch (error) {
-      console.error(error);
-      toast.error("PDF generation failed.", { id: load });
+      toast.error("Download failed.",error);
     }
   };
 
   const handleApplyWatermark = async () => {
+    if (files.length === 0) return toast.error("No images to protect.");
     setShowWatermarkModal(false);
-    const load = toast.loading("Applying Cryptographic Seal...");
+    const load = toast.loading(`Sealing Batch...`);
     try {
-      const { images } = await uploadFilesToBackend("watermark");
-      const response = await api.post("watermark/apply/", { image_id: images[0].ImageID });
-      setFiles((prev) => prev.map((f, i) => (i === 0 ? { ...f, db_id: images[0].ImageID, status: "completed", result: response.data.status || "Sealed" } : f)));
-      toast.success("Seal applied successfully!", { id: load });
+      for (const fileObj of files) {
+        const dbImage = await uploadSingleFile(fileObj, "watermark");
+        const response = await api.post("watermark/apply/", { image_id: dbImage.ImageID });
+        setFiles(prev => prev.map(f => f.id === fileObj.id ? { 
+          ...f, status: "completed", result: response.data.status || "Sealed", db_id: dbImage.ImageID 
+        } : f));
+      }
+      toast.success("Batch Protection Applied!", { id: load });
     } catch (error) {
-      console.error(error);
-      toast.error("Sealing failed", { id: load });
+      toast.error("Batch sealing failed.",error);
     }
   };
 
@@ -164,7 +174,8 @@ const ImageUploadPage = () => {
       <Toaster />
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-12">
-          <h1 className="text-6xl font-extrabold mb-4 bg-linear-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent uppercase tracking-tighter italic">
+          {/* ✅ Heading italic style removed */}
+          <h1 className="text-6xl font-extrabold mb-4 bg-linear-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent uppercase tracking-tighter">
             Image Upload
           </h1>
           <p className="text-gray-400 text-lg">AI Manipulation Detection & Digital Integrity Seals</p>
@@ -179,16 +190,21 @@ const ImageUploadPage = () => {
                 {files.map((file) => (
                   <div key={file.id} className="flex items-center justify-between bg-[#0f0f18] p-4 rounded-xl border border-gray-800">
                     <div className="flex items-center space-x-4">
-                      <Clock size={20} className="text-cyan-400" />
-                      <p className="text-sm font-semibold truncate max-w-[200px]">{file.name}</p>
-                      {file.result && <p className="text-[10px] font-bold uppercase text-cyan-400">{file.result}</p>}
+                      <div className="relative">
+                        <img src={file.preview} className="h-10 w-10 rounded-lg object-cover border border-gray-700" alt="" />
+                        {file.status === 'completed' && <div className="absolute -top-1 -right-1 bg-green-500 rounded-full p-0.5 border border-[#050505]"><ShieldCheck size={10} className="text-white"/></div>}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold truncate max-w-[200px]">{file.name}</p>
+                        {file.result && <p className="text-[10px] font-bold uppercase text-cyan-400 tracking-tighter">{file.result}</p>}
+                      </div>
                     </div>
                     <button onClick={() => handleRemoveFile(file.id)} className="text-gray-600 hover:text-red-500 transition-colors"><XCircle size={20} /></button>
                   </div>
                 ))}
                 <div className="flex justify-center gap-4 mt-10">
-                  <button onClick={() => setShowAnalysisModal(true)} className="px-8 py-3 bg-gray-800 border border-gray-700 rounded-xl font-bold hover:border-cyan-400 transition-all">AI Scan</button>
-                  <button onClick={() => setShowWatermarkModal(true)} className="px-8 py-3 bg-linear-to-r from-cyan-500 to-blue-600 rounded-xl font-bold shadow-lg transition-all">Protect Content</button>
+                  <button onClick={() => setShowAnalysisModal(true)} className="px-8 py-3 bg-gray-800 border border-gray-700 rounded-xl font-bold hover:border-cyan-400 transition-all"> AI Scan</button>
+                  <button onClick={() => setShowWatermarkModal(true)} className="px-8 py-3 bg-linear-to-r from-cyan-500 to-blue-600 rounded-xl font-bold shadow-lg transition-all">Protect All</button>
                 </div>
               </div>
             )}
@@ -197,39 +213,47 @@ const ImageUploadPage = () => {
       </div>
 
       <AnimatePresence>
-        {showVerifyPopup && verificationData && (
+        {showVerifyPopup && verificationData.length > 0 && (
           <div className="fixed inset-0 z-110 flex items-center justify-center p-4">
             <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowVerifyPopup(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" />
-            <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-lg bg-[#0f0f1a] border border-gray-800 rounded-2xl p-5 max-h-[90vh] shadow-2xl overflow-hidden">
+            <Motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative w-full max-w-2xl bg-[#0f0f1a] border border-gray-800 rounded-2xl p-6 max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+              
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-md font-bold uppercase flex items-center gap-2 font-mono italic">
-                  <Fingerprint className="text-cyan-400" size={18}/> Forensic Report
+                  <Fingerprint className="text-cyan-400" size={18}/> Batch Forensic Report ({verificationData.length})
                 </h2>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => downloadSingleReport(verificationData.image_id, verificationData.score)} className="p-2 hover:bg-cyan-500/10 text-gray-400 hover:text-cyan-400 rounded-full transition-all">
-                    <Download size={20} />
-                  </button>
-                  <button onClick={() => setShowVerifyPopup(false)} className="p-1.5 hover:bg-red-500/10 text-gray-400 hover:text-red-500 rounded-full transition-all">
-                    <X size={20}/>
-                  </button>
-                </div>
-              </div>
-              
-              <div className="rounded-xl border border-gray-800 overflow-hidden bg-black text-center mb-5 h-[280px] flex items-center justify-center">
-                <img src={resolveUrl(verificationData.display_image)} className="w-full h-full object-contain" alt="Forensic View" />
+                <button onClick={() => setShowVerifyPopup(false)} className="p-1.5 hover:bg-red-500/10 text-gray-500 hover:text-red-500 rounded-full">
+                  <X size={20}/>
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-gray-900/50 rounded-xl border border-gray-800 text-center flex flex-col justify-center min-h-20">
-                  <p className="text-[8px] text-gray-500 font-bold uppercase mb-1 tracking-widest italic">Process Verdict</p>
-                  <p className={`text-sm font-black leading-tight uppercase ${verificationData.status?.toLowerCase().includes('authentic') ? 'text-green-400' : 'text-red-500'}`}>
-                    {verificationData.status}
-                  </p>
-                </div>
-                <div className="p-3 bg-gray-900/50 rounded-xl border border-gray-800 text-center flex flex-col justify-center min-h-20">
-                  <p className="text-[8px] text-gray-500 font-bold uppercase mb-1 tracking-widest italic">AI Intensity</p>
-                  <p className="text-xl font-black text-cyan-400">{verificationData.score}%</p>
-                </div>
+              {/* SCROLLABLE LIST OF ALL RESULTS */}
+              <div className="flex-grow overflow-y-auto space-y-8 pr-2 custom-scrollbar">
+                {verificationData.map((data, index) => (
+                  <div key={index} className="border-b border-gray-800 pb-8 last:border-0">
+                    <p className="text-[10px] text-gray-400 mb-2 uppercase font-mono tracking-widest">Evidence #{index + 1}: {data.name}</p>
+                    
+                    <div className="rounded-xl border border-gray-800 overflow-hidden bg-black text-center mb-4 h-[250px] flex items-center justify-center">
+                      <img src={resolveUrl(data.display_image)} className="w-full h-full object-contain" alt="Forensic View" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-3 bg-gray-900/50 rounded-xl border border-gray-800 text-center flex flex-col justify-center min-h-20">
+                        <p className="text-[8px] text-gray-500 font-bold uppercase mb-1 tracking-widest italic">Verdict</p>
+                        <p className={`text-sm font-black leading-tight uppercase ${data.status?.toLowerCase().includes('authentic') ? 'text-green-400' : 'text-red-500'}`}>
+                          {data.status}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-gray-900/50 rounded-xl border border-gray-800 text-center flex flex-col justify-center min-h-20">
+                        <p className="text-[8px] text-gray-500 font-bold uppercase mb-1 tracking-widest italic">AI Intensity</p>
+                        <p className="text-xl font-black text-cyan-400">{data.score}%</p>
+                      </div>
+                    </div>
+                    <button onClick={() => downloadSingleReport(data.image_id, data.score)} className="mt-4 w-full py-3 bg-gray-900 border border-gray-800 hover:bg-cyan-500 hover:text-black rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
+                      <Download size={14}/> Download Report Dossier
+                    </button>
+                  </div>
+                ))}
               </div>
             </Motion.div>
           </div>
