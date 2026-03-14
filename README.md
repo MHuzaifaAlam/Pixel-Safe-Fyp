@@ -9,7 +9,7 @@ Pixel-Safe is a full-stack digital forensic platform designed to combat the rise
 ## PyTorch (GAN Detection), OpenCV (Saliency Maps/Grad-CAM), NumPy
 #### Database & Storage: PostgreSQL (Production), AWS S3 (Media Storage), Redis (Task Queue) 
 #### DevOps: Docker, Nginx, AWS EC2 (G4dn GPU instances) 
-###  System ArchitectureThe system follows a layered architecture designed for high-performance 
+###  System Architecture : The system follows a layered architecture designed for high-performance 
 ### AI inference:Presentation Layer: React-based dashboard providing heatmaps and confidence scores.
 ### Application Layer: Django API handling orchestration, authentication (JWT), and task enqueuing.
 ### Processing Layer: PyTorch-enabled GPU workers executing GAN detection and watermark extraction.
